@@ -1,8 +1,13 @@
 package org.incognito;
 
+import org.incognito.Connection;
+
 public class Server {
 
     public static void main(String[] args) {
-        System.out.println("hello world from the server");
+        // Initialize socket connection and listen for clients
+        Connection server = new Connection();
+        server.init();
+        server.start(); // this function handles client connections - it is blocking.
     }
 }
