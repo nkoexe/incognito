@@ -28,4 +28,8 @@ public class Connection {
         }
     }
 
+    public Socket getSocket() {
+        return socket;
+    }
+
 }
