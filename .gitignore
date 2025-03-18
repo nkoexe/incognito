@@ -1,0 +1,15 @@
+# Gradle
+.gradle
+/build/
+
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+.idea_modules/
+.vscode/
