@@ -7,6 +7,7 @@ import java.util.logging.Logger;
 
 public class ClientHandler implements Runnable {
     private static Logger logger = Logger.getLogger(ClientHandler.class.getName());
+
     private Socket clientSocket;
     private ObjectOutputStream outputStream;
     private ObjectInputStream inputStream;
@@ -21,12 +22,16 @@ public class ClientHandler implements Runnable {
             outputStream = new ObjectOutputStream(clientSocket.getOutputStream());
             inputStream = new ObjectInputStream(clientSocket.getInputStream());
 
+            // todo: authentication & initial data exchange
+
             String message;
             while ((message = (String) inputStream.readObject()) != null) {
+
                 logger.info("Message Received: " + message);
                 if (message.equals("exit")) {
                     break;
                 }
+
                 // Echo the message back to the client
                 outputStream.writeObject("Server: " + message);
                 outputStream.flush();
@@ -35,6 +40,7 @@ public class ClientHandler implements Runnable {
             inputStream.close();
             outputStream.close();
             clientSocket.close();
+
         } catch (Exception e) {
             logger.severe("Error handling client connection");
             e.printStackTrace();
