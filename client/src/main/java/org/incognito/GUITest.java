@@ -6,20 +6,16 @@ import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
-import java.util.ArrayList;
-import java.util.List;
-import java.io.EOFException;
 
 public class GUITest extends JFrame {
     private Connection connection;
-    private ObjectOutputStream outputStream;
-    private ObjectInputStream inputStream;
     private JTextArea chatArea;
     private JTextField messageField;
     private JButton sendButton;
     private JList<String> usersList;
     private DefaultListModel<String> usersModel;
-    private Thread readerThread;
+    private ReadThread readThread;
+    private WriteThread writeThread;
     private String userName;
 
     public GUITest() {
@@ -68,25 +64,39 @@ public class GUITest extends JFrame {
     }
 
     public void connect() {
+        // Initialize connection
         connection = new Connection();
         connection.connect();
 
-        try {
-            // Setup output stream
-            outputStream = new ObjectOutputStream(connection.getSocket().getOutputStream());
+        if (connection.getSocket() != null) {
             chatArea.append("Connected to server.\n");
 
-            // Setup input stream
-            inputStream = new ObjectInputStream(connection.getSocket().getInputStream());
+            // Prompt for username
+            String userName = JOptionPane.showInputDialog(
+                    this,
+                    "Enter your username:",
+                    "Username",
+                    JOptionPane.QUESTION_MESSAGE
+            );
 
-            new ReadThread(connection.getSocket(), this).start();
-            new WriteThread(connection.getSocket(), this).start();
-            // Start reader thread
-            readerThread = new Thread(this::readMessages);
-            readerThread.start();
-        } catch (IOException e) {
-            chatArea.append("Failed to establish data stream with server.\n");
-            e.printStackTrace();
+            if (userName == null || userName.trim().isEmpty()) {
+                userName = "Guest" + (int)(Math.random() * 1000);
+            }
+
+            this.userName = userName;
+
+            // Start read and write threads
+            readThread = new ReadThread(connection.getSocket(), this);
+            writeThread = new WriteThread(connection.getSocket(), this);
+
+            readThread.start();
+            writeThread.start();
+
+            // Update UI
+            setTitle("Incognito Chat - " + userName);
+            usersModel.setElementAt(userName, 0);
+        } else {
+            chatArea.append("Failed to connect to server.\n");
         }
     }
 
@@ -98,60 +108,29 @@ public class GUITest extends JFrame {
         return userName;
     }
 
-    private void readMessages() {
-        try {
-            while (!Thread.currentThread().isInterrupted() &&
-                    connection.getSocket() != null &&
-                    !connection.getSocket().isClosed()) {
-
-                try {
-                    Object message = inputStream.readObject();
-                    if (message == null) break;
-
-//                    final String messageStr = message.toString();
-//                    SwingUtilities.invokeLater(() -> {
-//                        chatArea.append("Server: " + messageStr + "\n");
-//                    });
-                } catch (EOFException e) {
-                    // Server closed the connection normally
-                    break;
-                }
-            }
-        } catch (IOException | ClassNotFoundException e) {
-            if (connection.getSocket() != null && !connection.getSocket().isClosed()) {
-                e.printStackTrace();
-                SwingUtilities.invokeLater(() -> {
-                    chatArea.append("Connection to server lost.\n");
-                });
-            }
-        } finally {
-            SwingUtilities.invokeLater(() -> {
-                chatArea.append("Disconnected from server.\n");
-            });
-        }
+    // Method to append messages to chat area (can be called from ReadThread)
+    public void appendMessage(String message) {
+        SwingUtilities.invokeLater(() -> {
+            chatArea.append(message + "\n");
+        });
     }
 
     private void disconnect() {
         try {
-            if (readerThread != null) {
-                readerThread.interrupt();
+            if (readThread != null) {
+                readThread.interrupt();
             }
 
-            if (outputStream != null) {
-                // Send exit message
-                outputStream.writeObject("exit");
-                outputStream.flush();
-                outputStream.close();
-            }
-
-            if (inputStream != null) {
-                inputStream.close();
+            if (writeThread != null) {
+                writeThread.interrupt();
             }
 
             if (connection != null) {
                 connection.close();
             }
-        } catch (IOException e) {
+
+            chatArea.append("Disconnected from server.\n");
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -160,15 +139,16 @@ public class GUITest extends JFrame {
         String message = messageField.getText().trim();
         if (message.isEmpty()) return;
 
-        try {
-            outputStream.writeObject(message);
-            outputStream.flush();
-            chatArea.append("You: " + message + "\n");
-            messageField.setText("");
+        // Display in local chat area
+        chatArea.append("You: " + message + "\n");
 
-        } catch (IOException ex) {
-            chatArea.append("Failed to send message.\n");
-            ex.printStackTrace();
+        // Clear message field
+        messageField.setText("");
+
+        // The actual sending is handled by WriteThread
+        // We just need to make the text available to it
+        if (writeThread != null) {
+            writeThread.sendMessage(message);
         }
     }
 

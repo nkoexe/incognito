@@ -1,10 +1,11 @@
 package org.incognito;
 
 import java.io.*;
-import java.net.*;
-
+import java.net.Socket;
+import java.util.logging.Logger;
 
 public class ReadThread extends Thread {
+    private static Logger logger = Logger.getLogger(ReadThread.class.getName());
     private BufferedReader reader;
     private Socket socket;
     private GUITest client;
@@ -17,26 +18,30 @@ public class ReadThread extends Thread {
             InputStream input = socket.getInputStream();
             reader = new BufferedReader(new InputStreamReader(input));
         } catch (IOException ex) {
-            System.out.println("Error getting input stream: " + ex.getMessage());
+            logger.severe("Error getting input stream: " + ex.getMessage());
             ex.printStackTrace();
         }
     }
 
     public void run() {
-        while (true) {
+        while (!Thread.currentThread().isInterrupted()) {
             try {
                 String response = reader.readLine();
-                System.out.println("\n" + response);
+                if (response == null) break;
 
-                // prints the username after displaying the server's message
-                if (client.getUserName() != null) {
-                    System.out.print("[" + client.getUserName() + "]: ");
-                }
+                client.appendMessage("Server: " + response);
             } catch (IOException ex) {
-                System.out.println("Error reading from server: " + ex.getMessage());
+                logger.severe("Error reading from server: " + ex.getMessage());
                 ex.printStackTrace();
                 break;
             }
+        }
+
+        try {
+            socket.close();
+        } catch (IOException ex) {
+            logger.severe("Error closing socket: " + ex.getMessage());
+            ex.printStackTrace();
         }
     }
 }
