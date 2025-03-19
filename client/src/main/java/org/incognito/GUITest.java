@@ -20,6 +20,7 @@ public class GUITest extends JFrame {
     private JList<String> usersList;
     private DefaultListModel<String> usersModel;
     private Thread readerThread;
+    private String userName;
 
     public GUITest() {
         // Set up the UI components
@@ -78,6 +79,8 @@ public class GUITest extends JFrame {
             // Setup input stream
             inputStream = new ObjectInputStream(connection.getSocket().getInputStream());
 
+            new ReadThread(connection.getSocket(), this).start();
+            new WriteThread(connection.getSocket(), this).start();
             // Start reader thread
             readerThread = new Thread(this::readMessages);
             readerThread.start();
@@ -85,6 +88,14 @@ public class GUITest extends JFrame {
             chatArea.append("Failed to establish data stream with server.\n");
             e.printStackTrace();
         }
+    }
+
+    void setUserName(String userName) {
+        this.userName = userName;
+    }
+
+    String getUserName() {
+        return userName;
     }
 
     private void readMessages() {
@@ -97,10 +108,10 @@ public class GUITest extends JFrame {
                     Object message = inputStream.readObject();
                     if (message == null) break;
 
-                    final String messageStr = message.toString();
-                    SwingUtilities.invokeLater(() -> {
-                        chatArea.append("Server: " + messageStr + "\n");
-                    });
+//                    final String messageStr = message.toString();
+//                    SwingUtilities.invokeLater(() -> {
+//                        chatArea.append("Server: " + messageStr + "\n");
+//                    });
                 } catch (EOFException e) {
                     // Server closed the connection normally
                     break;
@@ -154,6 +165,7 @@ public class GUITest extends JFrame {
             outputStream.flush();
             chatArea.append("You: " + message + "\n");
             messageField.setText("");
+
         } catch (IOException ex) {
             chatArea.append("Failed to send message.\n");
             ex.printStackTrace();
