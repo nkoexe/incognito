@@ -14,7 +14,7 @@ public class Connection {
     private static Logger logger = Logger.getLogger(Connection.class.getName());
 
     private ServerSocket socket;
-    public final int PORT = 5125;
+    public final int PORT = 58239;
 
     // threadPool that will handle user connections
     private ExecutorService clientHandlerPool;
@@ -31,6 +31,11 @@ public class Connection {
     }
 
     public void start() {
+        if (this.socket == null) {
+            logger.severe("Socket is unavailable. Unable to start server.");
+            return;
+        }
+
         while (true) {
             try {
                 logger.fine("Listening for a new client...");
