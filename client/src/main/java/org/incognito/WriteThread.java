@@ -1,12 +1,17 @@
 package org.incognito;
 
-import java.io.*;
+import java.io.ObjectOutputStream;
+import java.io.IOException;
 import java.net.Socket;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Logger;
 
 public class WriteThread extends Thread {
     private static Logger logger = Logger.getLogger(WriteThread.class.getName());
-    private PrintWriter writer;
+
+    private BlockingQueue<String> messageQueue = new LinkedBlockingQueue<>();
+    private ObjectOutputStream outputStream;
     private Socket socket;
     private GUITest client;
 
@@ -15,41 +20,57 @@ public class WriteThread extends Thread {
         this.client = client;
 
         try {
-            OutputStream output = socket.getOutputStream();
-            writer = new PrintWriter(output, true);
-        } catch (IOException ex) {
-            logger.severe("Error getting output stream: " + ex.getMessage());
-            ex.printStackTrace();
+            outputStream = new ObjectOutputStream(socket.getOutputStream());
+        } catch (IOException e) {
+            logger.severe("Error getting output stream: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
+    @Override
     public void run() {
-        BufferedReader consoleReader = new BufferedReader(new InputStreamReader(System.in));
-
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                String message = consoleReader.readLine();
-                writer.println(message);
+                // Blocks until a message is available
+                String message = messageQueue.take();
 
-                if (message.equalsIgnoreCase("exit")) {
-                    break;
+                try {
+                    if (outputStream == null) {
+                        logger.severe("Cannot send message - outputStream is null");
+                        continue;
+                    }
+
+                    outputStream.writeObject(message);
+                    outputStream.flush();
+                } catch (IOException e) {
+                    logger.severe("Error sending message: " + e.getMessage());
+                    e.printStackTrace();
                 }
-            } catch (IOException ex) {
-                logger.severe("Error writing to server: " + ex.getMessage());
-                ex.printStackTrace();
+
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 break;
             }
         }
 
+        close();
+    }
+
+    public void close() {
         try {
-            socket.close();
-        } catch (IOException ex) {
-            logger.severe("Error closing socket: " + ex.getMessage());
-            ex.printStackTrace();
+            if (outputStream != null) {
+                outputStream.close();
+            }
+            if (socket != null) {
+                socket.close();
+            }
+        } catch (IOException e) {
+            logger.severe("Error closing write thread: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
     public void sendMessage(String message) {
-        writer.println(message);
+        messageQueue.offer(message);
     }
 }

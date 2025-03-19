@@ -19,8 +19,8 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
-            inputStream = new ObjectInputStream(clientSocket.getInputStream());
             outputStream = new ObjectOutputStream(clientSocket.getOutputStream());
+            inputStream = new ObjectInputStream(clientSocket.getInputStream());
 
             // todo: authentication & initial data exchange
 
@@ -55,7 +55,6 @@ public class ClientHandler implements Runnable {
     public String receive() {
         try {
             String message = (String) inputStream.readObject();
-            System.err.println(message);
             return message;
 
         } catch (Exception e) {

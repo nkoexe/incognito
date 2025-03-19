@@ -15,8 +15,6 @@ public class Connection {
     private int port = 58239;
 
     private Socket socket;
-    private ObjectOutputStream outputStream;
-    private ObjectInputStream inputStream;
 
     public Socket getSocket() {
         return socket;
@@ -26,9 +24,6 @@ public class Connection {
         try {
             socket = new Socket(host, port);
             logger.info("Connected to server at " + host + ":" + port);
-
-            outputStream = new ObjectOutputStream(socket.getOutputStream());
-            inputStream = new ObjectInputStream(socket.getInputStream());
 
         } catch (UnknownHostException e) {
             logger.severe("Unknown host: " + host);

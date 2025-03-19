@@ -6,8 +6,10 @@ import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.*;
+import java.util.logging.Logger;
 
 public class GUITest extends JFrame {
+    private Logger logger = Logger.getLogger(GUITest.class.getName());
     private Connection connection;
     private JTextArea chatArea;
     private JTextField messageField;
@@ -61,36 +63,36 @@ public class GUITest extends JFrame {
                 disconnect();
             }
         });
+
+        setVisible(true);
     }
 
-    public void connect() {
-        // Initialize connection
-        connection = new Connection();
-        connection.connect();
+    public void initializeConnection(Connection connection) {
+
+        this.connection = connection;
 
         if (connection.getSocket() != null) {
             chatArea.append("Connected to server.\n");
+
+            // Start read and write threads
+            writeThread = new WriteThread(connection.getSocket(), this);
+            readThread = new ReadThread(connection.getSocket(), this);
+
+            writeThread.start();
+            readThread.start();
 
             // Prompt for username
             String userName = JOptionPane.showInputDialog(
                     this,
                     "Enter your username:",
                     "Username",
-                    JOptionPane.QUESTION_MESSAGE
-            );
+                    JOptionPane.QUESTION_MESSAGE);
 
             if (userName == null || userName.trim().isEmpty()) {
-                userName = "Guest" + (int)(Math.random() * 1000);
+                userName = "Guest" + (int) (Math.random() * 1000);
             }
 
             this.userName = userName;
-
-            // Start read and write threads
-            readThread = new ReadThread(connection.getSocket(), this);
-            writeThread = new WriteThread(connection.getSocket(), this);
-
-            readThread.start();
-            writeThread.start();
 
             // Update UI
             setTitle("Incognito Chat - " + userName);
@@ -137,7 +139,14 @@ public class GUITest extends JFrame {
 
     private void sendMessage(ActionEvent e) {
         String message = messageField.getText().trim();
-        if (message.isEmpty()) return;
+        if (message.isEmpty())
+            return;
+
+        if (writeThread == null) {
+            chatArea.append("ERROR: Cannot send message - not connected to server\n");
+            logger.severe("WriteThread is null when trying to send: " + message);
+            return;
+        }
 
         // Display in local chat area
         chatArea.append("You: " + message + "\n");
@@ -146,17 +155,17 @@ public class GUITest extends JFrame {
         messageField.setText("");
 
         // The actual sending is handled by WriteThread
-        // We just need to make the text available to it
-        if (writeThread != null) {
-            writeThread.sendMessage(message);
-        }
+        logger.info("Sending message: " + message);
+        writeThread.sendMessage(message);
     }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             GUITest client = new GUITest();
             client.setVisible(true);
-            client.connect();
+            Connection connection = new Connection();
+            connection.connect();
+            client.initializeConnection(connection);
         });
     }
 }

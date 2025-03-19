@@ -11,7 +11,7 @@ public class Server {
         // Initialize socket connection and listen for clients
         logger.fine("Starting Server...");
         Connection server = new Connection();
-        server.init();
+
         logger.info("Server ready");
         server.start(); // this function handles client connections - it is blocking.
     }
