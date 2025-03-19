@@ -5,19 +5,21 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.io.IOException;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.io.EOFException;
 
-public class GUITest extends JFrame{
+public class GUITest extends JFrame {
     private Connection connection;
     private ObjectOutputStream outputStream;
+    private ObjectInputStream inputStream;
     private JTextArea chatArea;
     private JTextField messageField;
     private JButton sendButton;
     private JList<String> usersList;
     private DefaultListModel<String> usersModel;
+    private Thread readerThread;
 
     public GUITest() {
         // Set up the UI components
@@ -69,21 +71,70 @@ public class GUITest extends JFrame{
         connection.connect();
 
         try {
+            // Setup output stream
             outputStream = new ObjectOutputStream(connection.getSocket().getOutputStream());
             chatArea.append("Connected to server.\n");
+
+            // Setup input stream
+            inputStream = new ObjectInputStream(connection.getSocket().getInputStream());
+
+            // Start reader thread
+            readerThread = new Thread(this::readMessages);
+            readerThread.start();
         } catch (IOException e) {
             chatArea.append("Failed to establish data stream with server.\n");
             e.printStackTrace();
         }
     }
 
+    private void readMessages() {
+        try {
+            while (!Thread.currentThread().isInterrupted() &&
+                    connection.getSocket() != null &&
+                    !connection.getSocket().isClosed()) {
+
+                try {
+                    Object message = inputStream.readObject();
+                    if (message == null) break;
+
+                    final String messageStr = message.toString();
+                    SwingUtilities.invokeLater(() -> {
+                        chatArea.append("Server: " + messageStr + "\n");
+                    });
+                } catch (EOFException e) {
+                    // Server closed the connection normally
+                    break;
+                }
+            }
+        } catch (IOException | ClassNotFoundException e) {
+            if (connection.getSocket() != null && !connection.getSocket().isClosed()) {
+                e.printStackTrace();
+                SwingUtilities.invokeLater(() -> {
+                    chatArea.append("Connection to server lost.\n");
+                });
+            }
+        } finally {
+            SwingUtilities.invokeLater(() -> {
+                chatArea.append("Disconnected from server.\n");
+            });
+        }
+    }
+
     private void disconnect() {
         try {
+            if (readerThread != null) {
+                readerThread.interrupt();
+            }
+
             if (outputStream != null) {
                 // Send exit message
                 outputStream.writeObject("exit");
                 outputStream.flush();
                 outputStream.close();
+            }
+
+            if (inputStream != null) {
+                inputStream.close();
             }
 
             if (connection != null) {

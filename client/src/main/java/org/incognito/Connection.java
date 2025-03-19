@@ -1,5 +1,6 @@
 package org.incognito;
 
+import java.io.IOException;
 import java.util.logging.Logger;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -15,19 +16,28 @@ public class Connection {
     public void connect() {
         try {
             socket = new Socket(host, port);
+            logger.info("Connected to server at " + host + ":" + port);
         } catch (UnknownHostException e) {
-            // todo: use offline local mode only
-            logger.warning("Unable to connect to server");
+            logger.severe("Unknown host: " + host);
+            e.printStackTrace();
+        } catch (IOException e) {
+            logger.severe("IOException while connecting to server");
+            e.printStackTrace();
         } catch (Exception e) {
+            logger.severe("Unexpected error while connecting");
             e.printStackTrace();
         }
     }
 
     public void close() {
         try {
-            socket.close();
-        } catch (Exception e) {
-            logger.warning("Error while attempting to close the connection");
+            if (socket != null && !socket.isClosed()) {
+                socket.close();
+                logger.info("Connection closed");
+            }
+        } catch (IOException e) {
+            logger.severe("Error while closing connection");
+            e.printStackTrace();
         }
     }
 
