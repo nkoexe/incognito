@@ -8,11 +8,13 @@ import java.util.logging.Logger;
 public class ClientHandler implements Runnable {
     private static Logger logger = Logger.getLogger(ClientHandler.class.getName());
 
+    private Connection connection;
     private Socket clientSocket;
     private ObjectOutputStream outputStream;
     private ObjectInputStream inputStream;
 
-    public ClientHandler(Socket clientSocket) {
+    public ClientHandler(Connection connection, Socket clientSocket) {
+        this.connection = connection;
         this.clientSocket = clientSocket;
     }
 
@@ -38,8 +40,8 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
-                // Echo the message back to the client
-                send("Server: " + message);
+                // temp: Send the message to all connected clients
+                connection.broadcast(message);
             }
 
             outputStream.close();

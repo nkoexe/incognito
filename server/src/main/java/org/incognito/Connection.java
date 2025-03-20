@@ -4,6 +4,7 @@ import java.util.logging.Logger;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -17,6 +18,7 @@ public class Connection {
 
     // threadPool that will handle user connections
     private ExecutorService clientHandlerPool;
+    private ArrayList<ClientHandler> connectedClients = new ArrayList<>();
 
     public Connection() {
         try {
@@ -45,7 +47,9 @@ public class Connection {
                 // After connection, handle each client in a new thread
                 // in order not to block main flow.
                 // Client authentication is also done in the dedicated thread
-                clientHandlerPool.execute(new ClientHandler(clientSocket));
+                ClientHandler clientHandler = new ClientHandler(this, clientSocket);
+                connectedClients.add(clientHandler);
+                clientHandlerPool.execute(clientHandler);
 
             } catch (Exception e) {
                 logger.severe("Error while accepting client connection");
@@ -64,6 +68,12 @@ public class Connection {
         } catch (IOException e) {
             logger.severe("Error while closing socket");
             e.printStackTrace();
+        }
+    }
+
+    public void broadcast(String message) {
+        for (ClientHandler client : connectedClients) {
+            client.send(message);
         }
     }
 }
