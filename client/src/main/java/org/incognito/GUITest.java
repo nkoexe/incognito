@@ -102,10 +102,6 @@ public class GUITest extends JFrame {
         }
     }
 
-    void setUserName(String userName) {
-        this.userName = userName;
-    }
-
     String getUserName() {
         return userName;
     }

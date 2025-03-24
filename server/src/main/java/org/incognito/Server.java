@@ -13,6 +13,6 @@ public class Server {
         Connection server = new Connection();
 
         logger.info("Server ready");
-        server.start(); // this function handles client connections - it is blocking.
+        server.start(); // this function handles client connectio\ns - it is blocking.
     }
 }
