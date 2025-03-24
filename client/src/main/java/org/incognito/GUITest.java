@@ -94,11 +94,40 @@ public class GUITest extends JFrame {
 
             this.userName = userName;
 
+            // Send username to server
+            writeThread.sendMessage("USERLIST:" + userName);
+
             // Update UI
             setTitle("Incognito Chat - " + userName);
             usersModel.setElementAt(userName, 0);
         } else {
             chatArea.append("Failed to connect to server.\n");
+        }
+    }
+
+    void updateUsersList(String userListStr) {
+        try {
+            SwingUtilities.invokeLater(() -> {
+                // Clear current list except for the current user
+                usersModel.clear();
+                usersModel.addElement(userName + " (you)");
+
+                if (userListStr != null && !userListStr.isEmpty()) {
+                    // Parse userListStr (format: "user1,user2,user3")
+                    String[] users = userListStr.split(",");
+                    for (String user : users) {
+                        user = user.trim();
+                        // Avoid adding current user twice
+                        if (!user.isEmpty() && !user.equals(userName)) {
+                            usersModel.addElement(user);
+                        }
+                    }
+                }
+                logger.info("Updated users list: " + userListStr);
+            });
+        } catch (Exception e) {
+            logger.severe("Error updating users list: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

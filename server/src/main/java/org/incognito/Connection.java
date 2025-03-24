@@ -1,5 +1,8 @@
 package org.incognito;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -19,6 +22,8 @@ public class Connection {
     // threadPool that will handle user connections
     private ExecutorService clientHandlerPool;
     private ArrayList<ClientHandler> connectedClients = new ArrayList<>();
+    private  Map<String, ClientHandler> usersClientMap = new ConcurrentHashMap<>();
+    private Set<String> connectedUsers = ConcurrentHashMap.newKeySet();
 
     public Connection() {
         try {
@@ -75,5 +80,49 @@ public class Connection {
         for (ClientHandler client : connectedClients) {
             client.send(message);
         }
+    }
+
+    //add user to the list of connected users
+    public void registerUser(String username, ClientHandler client) {
+        connectedUsers.add(username);
+        usersClientMap.put(username, client);
+
+        // Notify all clients about the new user
+        broadcast("CONNECT:" + username);
+
+        // Send updated user list to all clients
+        broadcastUserList();
+
+        logger.info("User " + username + " registered");
+    }
+
+    public void removeUser(String username, ClientHandler handler) {
+        usersClientMap.remove(username);
+        connectedUsers.remove(username);
+        connectedClients.remove(handler);
+
+        //Notify all client about the user that left
+        broadcast("DISCONNECT:" + username);
+
+        //Send updated user list to all clients
+        broadcastUserList();
+
+        logger.info("User " + username + " removed");
+    }
+
+    private void broadcastUserList() {
+        String userListStr = String.join(",", connectedUsers);
+        broadcast("USERLIST:" + userListStr);
+        logger.fine("Broadcasting user list: " + userListStr);
+    }
+
+    // Get client handler by username
+    public ClientHandler getClientByUsername(String username) {
+        return usersClientMap.get(username);
+    }
+
+    // Check if username is already taken
+    public boolean isUsernameTaken(String username) {
+        return connectedUsers.contains(username);
     }
 }
