@@ -182,7 +182,8 @@ public class GUITest extends JFrame {
 
         // The actual sending is handled by WriteThread
         logger.info("Sending message: " + message);
-        writeThread.sendMessage(userName + ": " + message);
+        //writeThread.sendMessage(userName + ": " + message);
+        writeThread.sendMessage(message);
     }
 
     public static void main(String[] args) {
