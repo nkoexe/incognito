@@ -12,6 +12,7 @@ import java.util.Base64;
 public class CryptoManager {
     private final KeyPair rsaKeyPair;
     private SecretKey aesSessionKey;
+    private PublicKey otherUserPublicKey;
 
     public CryptoManager() throws Exception {
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
@@ -77,5 +78,16 @@ public class CryptoManager {
         cipher.init(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate());
         byte[] decoded = cipher.doFinal(encryptedAesKey);
         return new SecretKeySpec(decoded, "AES");
+    }
+
+    public void setOtherUserPublicKey(String base64PublicKey) throws Exception {
+        byte[] decoded = Base64.getDecoder().decode(base64PublicKey);
+        X509EncodedKeySpec keySpec = new X509EncodedKeySpec(decoded);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");  // or your algorithm
+        otherUserPublicKey = keyFactory.generatePublic(keySpec);
+    }
+
+    public PublicKey getOtherUserPublicKey() {
+        return otherUserPublicKey;
     }
 }

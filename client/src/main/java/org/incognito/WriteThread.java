@@ -1,5 +1,10 @@
 package org.incognito;
 
+import org.incognito.shared.ChatMessage;
+
+import org.incognito.crypto.CryptoManager;
+import java.util.Base64;
+
 import java.io.ObjectOutputStream;
 import java.io.IOException;
 import java.net.Socket;
@@ -10,14 +15,17 @@ import java.util.logging.Logger;
 public class WriteThread extends Thread {
     private static Logger logger = Logger.getLogger(WriteThread.class.getName());
 
+    private CryptoManager cryptoManager;
+
     private BlockingQueue<String> messageQueue = new LinkedBlockingQueue<>();
     private ObjectOutputStream outputStream;
     private Socket socket;
     private GUITest client;
 
-    public WriteThread(Socket socket, GUITest client) {
+    public WriteThread(Socket socket, GUITest client, CryptoManager cryptoManager) {
         this.socket = socket;
         this.client = client;
+        this.cryptoManager = cryptoManager;
 
         try {
             outputStream = new ObjectOutputStream(socket.getOutputStream());
@@ -31,30 +39,53 @@ public class WriteThread extends Thread {
     public void run() {
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                // Blocks until a message is available
                 String message = messageQueue.take();
 
-                try {
-                    if (outputStream == null) {
-                        logger.severe("Cannot send message - outputStream is null");
-                        continue;
-                    }
-
-                    outputStream.writeObject(message);
-                    outputStream.flush();
-                } catch (IOException e) {
-                    logger.severe("Error sending message: " + e.getMessage());
-                    e.printStackTrace();
+                if (outputStream == null) {
+                    logger.severe("Cannot send message - outputStream is null");
+                    continue;
                 }
 
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
+                if (message.startsWith("USERLIST:") ||
+                        message.startsWith("CONNECT:") ||
+                        message.startsWith("DISCONNECT:")) {
+
+                    // Send system messages as plain strings (no encryption)
+                    outputStream.writeObject(message);
+                } else {
+                    // Encrypt message, encode to base64
+                    byte[] encrypted = cryptoManager.encryptAES(message);
+                    String encoded = Base64.getEncoder().encodeToString(encrypted);
+
+                    // Wrap in ChatMessage object
+                    ChatMessage chatMsg = new ChatMessage(client.getUserName(), encoded);
+
+                    // Send ChatMessage object
+                    outputStream.writeObject(chatMsg);
+                }
+                outputStream.flush();
+
+            } catch (Exception ex) {
+                logger.severe("Error sending message: " + ex.getMessage());
+                ex.printStackTrace();
             }
         }
-
         close();
     }
+
+    private void processSystemMessage(String message) {
+        try {
+            if (outputStream != null) {
+                outputStream.writeObject(message);
+            } else {
+                logger.severe("Cannot send system message - outputStream is null");
+            }
+        } catch (IOException e) {
+            logger.severe("Error sending system message: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
 
     public void close() {
         try {

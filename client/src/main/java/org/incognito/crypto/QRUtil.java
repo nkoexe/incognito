@@ -28,5 +28,12 @@ public class QRUtil {
         Result result = new MultiFormatReader().decode(bitmap);
         return result.getText();
     }
+
+    public static BufferedImage generateQRCodeImage(String data, int width, int height) throws Exception {
+        QRCodeWriter writer = new QRCodeWriter();
+        BitMatrix matrix = writer.encode(data, BarcodeFormat.QR_CODE, width, height);
+        return MatrixToImageWriter.toBufferedImage(matrix);
+    }
+
 }
 

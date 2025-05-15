@@ -1,2 +1,2 @@
 rootProject.name = "incognito"
-include("client", "server")
+include("client", "server", "shared")

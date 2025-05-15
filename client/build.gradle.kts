@@ -7,6 +7,7 @@ repositories {
 }
 
 dependencies {
+    implementation(project(":shared"))
     implementation(libs.guava)
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

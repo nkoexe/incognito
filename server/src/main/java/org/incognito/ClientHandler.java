@@ -1,5 +1,7 @@
 package org.incognito;
 
+import org.incognito.shared.ChatMessage;
+
 import java.io.*;
 import java.net.Socket;
 import java.util.logging.Logger;
@@ -30,42 +32,51 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
-            // Wait for the first message which should contain the username
-            String firstMessage = (String) inputStream.readObject();
+            while (true) {
+                String message = (String) inputStream.readObject();
 
-            // Check if it starts with USERLIST: prefix for username registration
-            if (firstMessage.startsWith("USERLIST:")) {
-                username = firstMessage.substring("USERLIST:".length());
+                if (message.startsWith("USERLIST:")) {
+                    String attemptedUsername = message.substring("USERLIST:".length());
 
-                // Check if username is already taken
-                if (server.isUsernameTaken(username)) {
-                    send("Server: Username '" + username + "' is already taken. Please reconnect with a different name.");
-                    closeConnection();
-                    return;
-                }
-
-                // Register the user with the server
-                server.registerUser(username, this);
-
-                // Welcome message
-                send("Server: Welcome " + username + "!");
-
-                // Process messages in a loop
-                while (!Thread.currentThread().isInterrupted()) {
-                    String message = (String) inputStream.readObject();
-                    if (message == null) {
-                        break;
+                    if (server.isUsernameTaken(attemptedUsername)) {
+                        send("USERNAME_TAKEN"); // Let client know it's taken
+                        message = (String) inputStream.readObject();
+                        if (!message.startsWith("USERLIST:")) {
+                            send("ERROR: Invalid username message.");
+                            closeConnection();
+                            return;
+                        }
+                    } else {
+                        this.username = attemptedUsername;
+                        server.registerUser(username, this);
+                        send("USERNAME_ACCEPTED");
+                        server.broadcast("CONNECT:" + username);
+                        break; // Exit loop and continue
                     }
-
-                    // Format message with username prefix
-                    String formattedMessage = username + ": " + message;
-
-                    // Broadcast the message to all clients
-                    server.broadcast(formattedMessage);
+                } else {
+                    send("INVALID_COMMAND");
                 }
-            } else {
-                send("Server: Invalid connection sequence. Please reconnect.");
             }
+
+            send("Server: Welcome " + username + "!");
+
+            // Main message handling loop
+            while (!Thread.currentThread().isInterrupted()) {
+                Object obj = inputStream.readObject();
+
+                if (obj == null) break;
+
+                if (obj instanceof String msgStr) {
+                    if (msgStr.startsWith("USERLIST:") ||
+                            msgStr.startsWith("CONNECT:") ||
+                            msgStr.startsWith("DISCONNECT:")) {
+                        server.broadcast(msgStr);
+                    }
+                } else if (obj instanceof ChatMessage chatMsg) {
+                    server.broadcast(chatMsg);
+                }
+            }
+
         } catch (IOException | ClassNotFoundException e) {
             logger.info("Client disconnected: " + e.getMessage());
         } finally {
@@ -73,7 +84,8 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    public void send(String message) {
+
+    public void send(Object message) {
         try {
             outputStream.writeObject(message);
             outputStream.flush();

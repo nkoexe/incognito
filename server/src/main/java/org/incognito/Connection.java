@@ -76,7 +76,7 @@ public class Connection {
         }
     }
 
-    public void broadcast(String message) {
+    public void broadcast(Object message) {
         for (ClientHandler client : connectedClients) {
             client.send(message);
         }

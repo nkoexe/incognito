@@ -1,20 +1,31 @@
 package org.incognito;
 
+import org.incognito.shared.ChatMessage;
+import org.incognito.crypto.CryptoManager;
+
+import java.util.Base64;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.logging.Logger;
+
 import java.io.ObjectInputStream;
 import java.io.IOException;
 import java.net.Socket;
-import java.util.logging.Logger;
 
 public class ReadThread extends Thread {
     private static Logger logger = Logger.getLogger(ReadThread.class.getName());
 
+    private CryptoManager cryptoManager;
     private ObjectInputStream inputStream;
     private Socket socket;
     private GUITest client;
 
-    public ReadThread(Socket socket, GUITest client) {
+    private final BlockingQueue<Object> messageQueue = new LinkedBlockingQueue<>();
+
+    public ReadThread(Socket socket, GUITest client, CryptoManager cryptoManager) {
         this.socket = socket;
         this.client = client;
+        this.cryptoManager = cryptoManager;
 
         try {
             inputStream = new ObjectInputStream(socket.getInputStream());
@@ -27,55 +38,90 @@ public class ReadThread extends Thread {
     @Override
     public void run() {
         while (!Thread.currentThread().isInterrupted()) {
-            String message = receive();
-            if (message == null)
-                break;
+            Object obj = receiveObject();
+            if (obj == null) break;
 
-            // Check if this is a user list update message
-            if (message.startsWith("USERLIST:")) {
-                // Extract the user list part after the prefix
-                String userListStr = message.substring("USERLIST:".length());
-                client.updateUsersList(userListStr);
-            }  else if (message.startsWith("CONNECT:")) {
-                // Extract the username that connected
-                String username = message.substring("CONNECT:".length());
-                client.appendMessage(username + " has joined the chat");
-                // We don't need to update the user list here as we should receive a USERLIST message
-            } else if (message.startsWith("DISCONNECT:")) {
-                // Extract the username that disconnected
-                String username = message.substring("DISCONNECT:".length());
-                client.appendMessage(username + " has left the chat");
-                // We don't need to update the user list here as we should receive a USERLIST message
-            } else {
-                // Regular message
-                client.appendMessage(message);
+            try {
+                messageQueue.put(obj); // Allow external thread (like GUITest) to read
+
+                // Also process system messages and chat normally
+                if (obj instanceof String msgStr) {
+                    if (msgStr.startsWith("USERLIST:") ||
+                            msgStr.startsWith("CONNECT:") ||
+                            msgStr.startsWith("DISCONNECT:") ||
+                            msgStr.startsWith("SERVER:") ||
+                            msgStr.startsWith("ERROR:") ||
+                            msgStr.startsWith("INFO:")) {
+                        processSystemMessage(msgStr);
+                    } else {
+                        client.appendMessage(msgStr);
+                    }
+                } else if (obj instanceof ChatMessage chatMsg) {
+                    byte[] encrypted = Base64.getDecoder().decode(chatMsg.getEncryptedContent());
+                    String decrypted = cryptoManager.decryptAES(encrypted);
+                    client.appendMessage(chatMsg.getSender() + ": " + decrypted);
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                logger.severe("Error handling incoming message: " + e.getMessage());
             }
         }
-
         close();
+    }
+
+    private Object receiveObject() {
+        try {
+            return inputStream.readObject();
+        } catch (IOException | ClassNotFoundException e) {
+            logger.severe("Error reading from server: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private void processSystemMessage(String message) {
+        if (message.startsWith("USERLIST:")) {
+            String userListStr = message.substring("USERLIST:".length());
+            client.updateUsersList(userListStr);
+        } else if (message.startsWith("CONNECT:")) {
+            String username = message.substring("CONNECT:".length());
+            client.appendMessage(username + " has joined the chat");
+        } else if (message.startsWith("DISCONNECT:")) {
+            String username = message.substring("DISCONNECT:".length());
+            client.appendMessage(username + " has left the chat");
+        } else if (message.startsWith("SERVER:")) {
+            String serverMessage = message.substring("SERVER:".length());
+            client.appendMessage("[Server] " + serverMessage);
+        } else if (message.startsWith("ERROR:")) {
+            String errorMessage = message.substring("ERROR:".length());
+            client.appendMessage("[Error] " + errorMessage);
+        } else if (message.startsWith("INFO:")) {
+            String infoMessage = message.substring("INFO:".length());
+            client.appendMessage("[Info] " + infoMessage);
+        }
     }
 
     public void close() {
         try {
-            if (inputStream != null) {
-                inputStream.close();
-            }
-            if (socket != null) {
-                socket.close();
-            }
+            if (inputStream != null) inputStream.close();
+            if (socket != null) socket.close();
         } catch (IOException e) {
             logger.severe("Error closing read thread: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    public String receive() {
+    /**
+     * Waits for and returns the next message received from the server.
+     * Useful for blocking reads during login phase (e.g. username confirmation).
+     */
+    public Object readResponse() {
         try {
-            String message = (String) inputStream.readObject();
-            return message;
-        } catch (IOException | ClassNotFoundException e) {
-            logger.severe("Error reading from server: " + e.getMessage());
-            e.printStackTrace();
+            return messageQueue.take(); // waits until a message is available
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             return null;
         }
     }
