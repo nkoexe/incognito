@@ -1,4 +1,4 @@
-package org.incognito.shared;
+package org.incognito;
 
 import java.io.Serializable;
 
