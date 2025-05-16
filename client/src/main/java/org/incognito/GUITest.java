@@ -135,6 +135,7 @@ public class GUITest extends JFrame {
                     } else if (str.equals("USERNAME_TAKEN")) {
                         JOptionPane.showMessageDialog(this, "Username already taken. Please try another one.");
                     } else {
+                        logger.severe("Unexpected server response: " + str);
                         JOptionPane.showMessageDialog(this, "Unexpected server response. Try again.");
                     }
                 }
