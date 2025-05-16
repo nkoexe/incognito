@@ -1,7 +1,5 @@
 package org.incognito;
 
-import org.incognito.shared.ChatMessage;
-
 import java.io.*;
 import java.net.Socket;
 import java.util.logging.Logger;
