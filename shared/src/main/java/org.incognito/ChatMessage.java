@@ -2,7 +2,7 @@ package org.incognito;
 
 import java.io.Serializable;
 
-public class ChatMessage implements Serializable {
+public class ChatMessage {
     private static final long serialVersionUID = 1L;
 
     private final String sender;

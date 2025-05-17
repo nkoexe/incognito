@@ -59,20 +59,27 @@ public class ClientHandler implements Runnable {
             send("Server: Welcome " + username + "!");
 
             // Main message handling loop
+            label:
             while (!Thread.currentThread().isInterrupted()) {
                 Object obj = inputStream.readObject();
 
-                if (obj == null) break;
-
-                if (obj instanceof String msgStr) {
-                    if (msgStr.startsWith("USERLIST:") ||
-                            msgStr.startsWith("CONNECT:") ||
-                            msgStr.startsWith("DISCONNECT:")) {
-                        server.broadcast(msgStr);
-                    }
-                } else if (obj instanceof ChatMessage chatMsg) {
-                    server.broadcast(chatMsg);
+                switch (obj) {
+                    case null:
+                        break label;
+                    case String msgStr:
+                        if (msgStr.startsWith("USERLIST:") ||
+                                msgStr.startsWith("CONNECT:") ||
+                                msgStr.startsWith("DISCONNECT:")) {
+                            server.broadcast(msgStr);
+                        }
+                        break;
+                    case ChatMessage chatMsg:
+                        server.broadcast(chatMsg);
+                        break;
+                    default:
+                        break;
                 }
+
             }
 
         } catch (IOException | ClassNotFoundException e) {

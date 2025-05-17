@@ -234,10 +234,10 @@ public class GUITest extends JFrame {
         // Main Panel with BorderLayout
         JPanel qrPanel = new JPanel(new BorderLayout());
         qrPanel.setBorder(BorderFactory.createTitledBorder("QR Code Exchange"));
-        qrPanel.setPreferredSize(new Dimension(220, 280));  // Bigger
+        qrPanel.setPreferredSize(new Dimension(280, 280));  // Bigger
 
         // Panel for QR code image
-        qrCodeLabel = new JLabel("QR Code verrà visualizzato qui");
+        qrCodeLabel = new JLabel();
         qrCodeLabel.setHorizontalAlignment(SwingConstants.CENTER);
         qrCodeLabel.setBorder(BorderFactory.createEtchedBorder());
         qrCodeLabel.setPreferredSize(new Dimension(200, 200));
@@ -248,11 +248,11 @@ public class GUITest extends JFrame {
 
         // Panel for buttons
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 5));
-        saveQRButton = new JButton("Salva QR");
-        scanQRButton = new JButton("Scansiona QR");
+        saveQRButton = new JButton("Save QR");
+        scanQRButton = new JButton("Scan QR");
 
         // Set preferred size for buttons
-        Dimension buttonSize = new Dimension(110, 30);
+        Dimension buttonSize = new Dimension(100, 30);
         saveQRButton.setPreferredSize(buttonSize);
         scanQRButton.setPreferredSize(buttonSize);
 
