@@ -11,6 +11,8 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.logging.Logger;
 
 public class GUITest extends JFrame {
@@ -98,7 +100,7 @@ public class GUITest extends JFrame {
 //        }
 //    }
 
-    public void initializeConnection(Connection connection) {
+    public void initializeConnection(Connection connection) throws InterruptedException {
 
         initializeKeys();
         this.connection = connection;
@@ -106,13 +108,16 @@ public class GUITest extends JFrame {
         if (connection.getSocket() != null) {
             chatArea.append("Connected to server.\n");
 
+            BlockingQueue<String> loginQueue = new ArrayBlockingQueue<>(1);
+
             // Start read and write threads
             writeThread = new WriteThread(connection.getSocket(), this, cryptoManager);
-            readThread = new ReadThread(connection.getSocket(), this, cryptoManager);
+            readThread = new ReadThread(connection.getSocket(), this, cryptoManager, loginQueue);
 
             writeThread.start();
             readThread.start();
 
+            label:
             while (true) {
                 String inputName = JOptionPane.showInputDialog(
                         this,
@@ -126,24 +131,28 @@ public class GUITest extends JFrame {
 
                 writeThread.sendMessage("USERLIST:" + inputName);
 
-                Object response = readThread.readResponse();
+                Object response = loginQueue.take();
 
                 if (response instanceof String str) {
-                    if (str.equals("USERNAME_ACCEPTED")) {
-                        this.userName = inputName;
-                        break;
-                    } else if (str.equals("USERNAME_TAKEN")) {
-                        JOptionPane.showMessageDialog(this, "Username already taken. Please try another one.");
-                    } else {
-                        logger.severe("Unexpected server response: " + str);
-                        JOptionPane.showMessageDialog(this, "Unexpected server response. Try again.");
+                    switch (str) {
+                        case "USERNAME_ACCEPTED":
+                            this.userName = inputName;
+                            break label;
+                        case "USERNAME_TAKEN":
+                            JOptionPane.showMessageDialog(this, "Username already taken. Please try another one.");
+                            break;
+                        case "INVALID_COMMAND":
+                            logger.severe("Unexpected server response: " + str);
+                            JOptionPane.showMessageDialog(this, "Unexpected server response. Try again.");
+//                            break label;
                     }
                 }
+//                break label;
             }
 
             // Update UI
             setTitle("Incognito Chat - " + userName);
-            usersModel.setElementAt(userName, 0);
+//            usersModel.setElementAt(userName, 0);
         } else {
             chatArea.append("Failed to connect to server.\n");
         }
@@ -154,6 +163,8 @@ public class GUITest extends JFrame {
             SwingUtilities.invokeLater(() -> {
                 // Clear current list except for the current user
                 usersModel.clear();
+
+                // Adds first the current user
                 usersModel.addElement(userName + " (you)");
 
                 if (userListStr != null && !userListStr.isEmpty()) {
@@ -172,6 +183,17 @@ public class GUITest extends JFrame {
         } catch (Exception e) {
             logger.severe("Error updating users list: " + e.getMessage());
             e.printStackTrace();
+        }
+    }
+
+    // Method to remove a user from the list
+    public void removeUser(String username) {
+        for (int i = 0; i < usersModel.getSize(); i++) {
+            String user = usersModel.getElementAt(i);
+            if (user.equals(username)) {
+                usersModel.removeElementAt(i);
+                break;
+            }
         }
     }
 
@@ -365,7 +387,11 @@ public class GUITest extends JFrame {
             client.setVisible(true);
             Connection connection = new Connection();
             connection.connect();
-            client.initializeConnection(connection);
+            try {
+                client.initializeConnection(connection);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         });
     }
 }

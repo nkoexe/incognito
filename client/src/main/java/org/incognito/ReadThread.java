@@ -2,6 +2,7 @@ package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
 
+import javax.swing.*;
 import java.util.Base64;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -20,11 +21,17 @@ public class ReadThread extends Thread {
     private GUITest client;
 
     private final BlockingQueue<Object> messageQueue = new LinkedBlockingQueue<>();
+    private BlockingQueue<String> loginResponseQueue;
 
     public ReadThread(Socket socket, GUITest client, CryptoManager cryptoManager) {
+        this(socket, client, cryptoManager, null);
+    }
+
+    public ReadThread(Socket socket, GUITest client, CryptoManager cryptoManager, BlockingQueue<String> loginResponseQueue) {
         this.socket = socket;
         this.client = client;
         this.cryptoManager = cryptoManager;
+        this.loginResponseQueue = loginResponseQueue;
 
         try {
             inputStream = new ObjectInputStream(socket.getInputStream());
@@ -41,10 +48,19 @@ public class ReadThread extends Thread {
             if (obj == null) break;
 
             try {
-                messageQueue.put(obj); // Allow external thread (like GUITest) to read
-
-                // Also process system messages and chat normally
+                // Login system messages are expected to be Strings
                 if (obj instanceof String msgStr) {
+                    if (loginResponseQueue != null &&
+                            (msgStr.equals("USERNAME_ACCEPTED") || msgStr.equals("USERNAME_TAKEN") || msgStr.equals("INVALID_COMMAND"))) {
+                        loginResponseQueue.put(msgStr);
+                        loginResponseQueue = null; // Only used once
+                        continue;
+                    }
+
+                    // Store in messageQueue for blocking reads
+                    messageQueue.put(msgStr);
+
+                    // Process system or chat messages
                     if (msgStr.startsWith("USERLIST:") ||
                             msgStr.startsWith("CONNECT:") ||
                             msgStr.startsWith("DISCONNECT:") ||
@@ -59,6 +75,7 @@ public class ReadThread extends Thread {
                     byte[] encrypted = Base64.getDecoder().decode(chatMsg.getEncryptedContent());
                     String decrypted = cryptoManager.decryptAES(encrypted);
                     client.appendMessage(chatMsg.getSender() + ": " + decrypted);
+                    messageQueue.put(chatMsg);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -86,9 +103,12 @@ public class ReadThread extends Thread {
             client.updateUsersList(userListStr);
         } else if (message.startsWith("CONNECT:")) {
             String username = message.substring("CONNECT:".length());
-            client.appendMessage(username + " has joined the chat");
+//            client.appendMessage(username + " has joined the chat");
         } else if (message.startsWith("DISCONNECT:")) {
             String username = message.substring("DISCONNECT:".length());
+            SwingUtilities.invokeLater(() -> {
+                client.removeUser(username);
+            });
             client.appendMessage(username + " has left the chat");
         } else if (message.startsWith("SERVER:")) {
             String serverMessage = message.substring("SERVER:".length());
