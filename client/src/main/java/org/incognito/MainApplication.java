@@ -21,7 +21,20 @@ public class MainApplication {
                 MenuPage.MenuListener menuListener = new MenuPage.MenuListener() {
                     @Override
                     public void onKeysExchangedAndProceed(CryptoManager readyCryptoManager, MenuPage menuPageInstance) {
-                        menuPageInstance.dispose(); // Close menu page
+                        if (readyCryptoManager.getOtherUserPublicKeyBase64() == null) {
+                            logger.severe("Key exchange incomplete: Other user's public key is missing in CryptoManager.");
+                            JOptionPane.showMessageDialog(
+                                    menuPageInstance, // Show dialog on the menu page
+                                    "Incomplete key exchange: the contact's public key has not been loaded.\n" +
+                                            "Make sure you have scanned the contact's QR code and/or imported the encrypted AES key.",
+                                    "Key Exchange Error",
+                                    JOptionPane.ERROR_MESSAGE);
+                            return;
+                        }
+
+                        if (menuPageInstance != null) {
+                            menuPageInstance.dispose(); // Close menu page
+                        }
 
                         // Creates GUITest with the configured CryptoManager
                         chatClient = new GUITest(readyCryptoManager);
