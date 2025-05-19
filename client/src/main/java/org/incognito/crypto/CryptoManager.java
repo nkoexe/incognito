@@ -24,6 +24,13 @@ public class CryptoManager {
         return Base64.getEncoder().encodeToString(rsaKeyPair.getPublic().getEncoded());
     }
 
+    public String getOtherUserPublicKeyBase64() {
+        if (otherUserPublicKey == null) {
+            throw new IllegalStateException("Other user's public key has not been set.");
+        }
+        return Base64.getEncoder().encodeToString(otherUserPublicKey.getEncoded());
+    }
+
     public void setAesSessionKey(SecretKey key) {
         this.aesSessionKey = key;
     }
@@ -89,5 +96,27 @@ public class CryptoManager {
 
     public PublicKey getOtherUserPublicKey() {
         return otherUserPublicKey;
+    }
+
+    public String encryptWithOtherUserPublicKey(String data) throws Exception {
+        if (otherUserPublicKey == null) {
+            throw new IllegalStateException("Other user's public key has not been set.");
+        }
+
+        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+        cipher.init(Cipher.ENCRYPT_MODE, otherUserPublicKey);
+
+        byte[] encryptedBytes = cipher.doFinal(data.getBytes(StandardCharsets.UTF_8));
+        return Base64.getEncoder().encodeToString(encryptedBytes);
+    }
+
+    public String decryptWithPrivateKey(String encryptedData) throws Exception {
+        Cipher cipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
+        cipher.init(Cipher.DECRYPT_MODE, rsaKeyPair.getPrivate());
+
+        byte[] encryptedBytes = Base64.getDecoder().decode(encryptedData);
+        byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
+
+        return new String(decryptedBytes, StandardCharsets.UTF_8);
     }
 }

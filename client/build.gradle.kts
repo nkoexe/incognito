@@ -23,7 +23,7 @@ java {
 }
 
 application {
-    mainClass = "org.incognito.App"
+    mainClass = "org.incognito.MainApplication"
 }
 
 tasks.named<Test>("test") {

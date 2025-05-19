@@ -52,6 +52,11 @@ public class WriteThread extends Thread {
                     // Send system messages as plain strings (no encryption)
                     outputStream.writeObject(message);
                 } else {
+                    if (cryptoManager.getAesSessionKey() == null) {
+                        logger.severe("AES session key is null. Cannot encrypt message.");
+                        client.appendMessage("[SYSTEM] AES session key is null. Cannot encrypt message.");
+                        continue;
+                    }
                     // Encrypt message, encode to base64
                     byte[] encrypted = cryptoManager.encryptAES(message);
                     String encoded = Base64.getEncoder().encodeToString(encrypted);
@@ -62,10 +67,12 @@ public class WriteThread extends Thread {
                     // Send ChatMessage object
                     outputStream.writeObject(chatMsg);
                 }
+
                 outputStream.flush();
 
             } catch (Exception ex) {
                 logger.severe("Error sending message: " + ex.getMessage());
+                client.appendMessage("[SYSTEM] Error sending message: " + ex.getMessage());
                 ex.printStackTrace();
             }
         }

@@ -11,17 +11,14 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.logging.Logger;
 
 public class GUITest extends JFrame {
-    // Encryption manager + stuff
-    private CryptoManager cryptoManager;
-    private JLabel qrCodeLabel;   // To display QR code image
-    private JButton saveQRButton;
-    private JButton scanQRButton;
-    private String myPublicKeyString;  // Store your own public key string for QR code
 
     // Set up logging
     private Logger logger = Logger.getLogger(GUITest.class.getName());
@@ -37,8 +34,22 @@ public class GUITest extends JFrame {
     private WriteThread writeThread;
     private String userName;
 
-    public GUITest() {
+    private CryptoManager cryptoManager;
+
+    public GUITest(CryptoManager cryptoManager) {
+        this.cryptoManager = cryptoManager;
         // Set up the UI components
+
+        try {
+            SecretKey sessionKey = this.cryptoManager.generateAESKey();
+            this.cryptoManager.setAesSessionKey(sessionKey);
+            logger.info("AES session key generated and set.");
+        } catch (Exception e) {
+            logger.severe("Error while generating AES session key: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "Fatal error: unable to generate session key.", "Cryptography error", JOptionPane.ERROR_MESSAGE);
+            System.exit(1); // O gestisci diversamente
+        }
+
         setTitle("Incognito Chat");
         setSize(720, 480);
         setLocationRelativeTo(null); // Center the window
@@ -55,6 +66,19 @@ public class GUITest extends JFrame {
         usersModel = new DefaultListModel<>();
         usersModel.addElement("You");
         usersList = new JList<>(usersModel);
+        usersList.setCellRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                                                          boolean isSelected, boolean cellHasFocus) {
+                Component renderer = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value.toString().contains(" (tu)")) {
+                    renderer.setFont(renderer.getFont().deriveFont(Font.BOLD));
+                } else if (value.toString().contains(" (contatto)")) {
+                    renderer.setForeground(new Color(0, 102, 204)); // Blu per il contatto
+                }
+                return renderer;
+            }
+        });
         JScrollPane usersScrollPane = new JScrollPane(usersList);
         usersScrollPane.setPreferredSize(new Dimension(100, 0));
 
@@ -64,9 +88,6 @@ public class GUITest extends JFrame {
         sendButton = new JButton("Send");
         inputPanel.add(messageField, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
-
-        // Set up QR code panel
-        setupQRPanel();
 
         // Add components to frame
         add(chatScrollPane, BorderLayout.CENTER);
@@ -89,20 +110,9 @@ public class GUITest extends JFrame {
         setVisible(true);
     }
 
-//    public void initializeKeys() {
-//        try {
-//            this.cryptoManager = new CryptoManager();
-//            SecretKey sessionKey = cryptoManager.generateAESKey();
-//            cryptoManager.setAesSessionKey(sessionKey);
-//        } catch (Exception e) {
-//            JOptionPane.showMessageDialog(this, "Failed to initialize encryption keys.");
-//            e.printStackTrace();
-//        }
-//    }
-
     public void initializeConnection(Connection connection) throws InterruptedException {
 
-        initializeKeys();
+        logger.info("Initializing connection...");
         this.connection = connection;
 
         if (connection.getSocket() != null) {
@@ -111,51 +121,82 @@ public class GUITest extends JFrame {
             BlockingQueue<String> loginQueue = new ArrayBlockingQueue<>(1);
 
             // Start read and write threads
-            writeThread = new WriteThread(connection.getSocket(), this, cryptoManager);
-            readThread = new ReadThread(connection.getSocket(), this, cryptoManager, loginQueue);
+            writeThread = new WriteThread(connection.getSocket(), this, this.cryptoManager);
+            readThread = new ReadThread(connection.getSocket(), this, this.cryptoManager, loginQueue);
 
             writeThread.start();
             readThread.start();
 
-            label:
-            while (true) {
-                String inputName = JOptionPane.showInputDialog(
-                        this,
-                        "Enter your username:",
-                        "Username",
-                        JOptionPane.QUESTION_MESSAGE);
+            String inputName = JOptionPane.showInputDialog(
+                    this,
+                    "Enter your username:",
+                    "Username",
+                    JOptionPane.QUESTION_MESSAGE);
 
-                if (inputName == null || inputName.trim().isEmpty()) {
-                    inputName = "Guest" + (int) (Math.random() * 1000);
-                }
+            if (inputName == null || inputName.trim().isEmpty()) {
+                inputName = "Guest" + (int) (Math.random() * 1000);
+            }
 
-                writeThread.sendMessage("USERLIST:" + inputName);
+            // New comand for 1-to-1 chat
+            String sessionId = generateSessionId();
+            logger.info("Sending message PRIVATE_CHAT with sessionId: " + sessionId);
+            writeThread.sendMessage("PRIVATE_CHAT:" + inputName + ":" + sessionId);
 
-                Object response = loginQueue.take();
+            try {
+                Object response = loginQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
 
                 if (response instanceof String str) {
                     switch (str) {
                         case "USERNAME_ACCEPTED":
                             this.userName = inputName;
-                            break label;
-                        case "USERNAME_TAKEN":
-                            JOptionPane.showMessageDialog(this, "Username already taken. Please try another one.");
                             break;
-                        case "INVALID_COMMAND":
-                            logger.severe("Unexpected server response: " + str);
-                            JOptionPane.showMessageDialog(this, "Unexpected server response. Try again.");
-//                            break label;
+                        case "USERNAME_TAKEN":
+                            JOptionPane.showMessageDialog(this, "Nome utente già in uso. Riprova.");
+                            // Chiamata ricorsiva per richiedere un nuovo nome utente
+                            initializeConnection(connection);
+                            return;
+                        case "WAITING_FOR_PEER":
+                            chatArea.append("In attesa che il tuo contatto si connetta...\n");
+                            break;
+                        case "PEER_CONNECTED":
+                            chatArea.append("Il tuo contatto si è connesso! Puoi iniziare a chattare.\n");
+                            break;
+                        default:
+                            logger.warning("Risposta del server non riconosciuta: " + str);
+                            JOptionPane.showMessageDialog(this, "Risposta del server inattesa. Riprova.");
+                            break;
                     }
+                } else if (response == null) {
+                    chatArea.append("Server response is null.\n");
+                    logger.warning("Timout waiting for server response.");
                 }
-//                break label;
+            } catch (InterruptedException e) {
+                logger.severe("Error while waiting for server response: " + e.getMessage());
+                chatArea.append("Error while waiting for server response: " + e.getMessage() + "\n");
             }
+
 
             // Update UI
             setTitle("Incognito Chat - " + userName);
-//            usersModel.setElementAt(userName, 0);
+            updateUsersList(userName);
         } else {
             chatArea.append("Failed to connect to server.\n");
+            return;
         }
+    }
+
+    // Method to generate a unique session ID
+    private String generateSessionId() {
+        try {
+            String combinedKeys = cryptoManager.getPublicKeyBase64() + cryptoManager.getOtherUserPublicKeyBase64();
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(combinedKeys.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(hash);
+        } catch (Exception e) {
+            logger.severe("Error generating session ID: " + e.getMessage());
+            return "session-" + System.currentTimeMillis(); // Fallback
+        }
+
     }
 
     void updateUsersList(String userListStr) {
@@ -174,7 +215,8 @@ public class GUITest extends JFrame {
                         user = user.trim();
                         // Avoid adding current user twice
                         if (!user.isEmpty() && !user.equals(userName)) {
-                            usersModel.addElement(user);
+                            usersModel.addElement(user + " (contact)");
+                            break; // Only add the first user for now in a 1-to-1 chat
                         }
                     }
                 }
@@ -250,148 +292,5 @@ public class GUITest extends JFrame {
         logger.info("Sending message: " + message);
         //writeThread.sendMessage(userName + ": " + message);
         writeThread.sendMessage(message);
-    }
-
-    private void setupQRPanel() {
-        // Main Panel with BorderLayout
-        JPanel qrPanel = new JPanel(new BorderLayout());
-        qrPanel.setBorder(BorderFactory.createTitledBorder("QR Code Exchange"));
-        qrPanel.setPreferredSize(new Dimension(280, 280));  // Bigger
-
-        // Panel for QR code image
-        qrCodeLabel = new JLabel();
-        qrCodeLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        qrCodeLabel.setBorder(BorderFactory.createEtchedBorder());
-        qrCodeLabel.setPreferredSize(new Dimension(200, 200));
-
-        JScrollPane scrollPane = new JScrollPane(qrCodeLabel);
-        scrollPane.setPreferredSize(new Dimension(200, 200));
-        qrPanel.add(scrollPane, BorderLayout.CENTER);
-
-        // Panel for buttons
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 5));
-        saveQRButton = new JButton("Save QR");
-        scanQRButton = new JButton("Scan QR");
-
-        // Set preferred size for buttons
-        Dimension buttonSize = new Dimension(100, 30);
-        saveQRButton.setPreferredSize(buttonSize);
-        scanQRButton.setPreferredSize(buttonSize);
-
-        buttonPanel.add(saveQRButton);
-        buttonPanel.add(scanQRButton);
-        qrPanel.add(buttonPanel, BorderLayout.SOUTH);
-
-        // Add QR panel to the main frame on the left
-        add(qrPanel, BorderLayout.WEST);
-
-        // Add action listeners for buttons
-        saveQRButton.addActionListener(e -> saveQRCodeToFile());
-        scanQRButton.addActionListener(e -> scanQRCodeFromFile());
-    }
-
-    private void saveQRCodeToFile() {
-        if (myPublicKeyString == null || myPublicKeyString.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "No public key available to save.",
-                    "Error", JOptionPane.ERROR_MESSAGE);
-            return;
-        }
-
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Save QR Code");
-        fileChooser.setSelectedFile(new File("public_key_qr.png"));
-
-        int option = fileChooser.showSaveDialog(this);
-        if (option == JFileChooser.APPROVE_OPTION) {
-            File file = fileChooser.getSelectedFile();
-            try {
-                QRUtil.generateQRCode(myPublicKeyString, file.getAbsolutePath(), 200, 200);
-                JOptionPane.showMessageDialog(this, "QR Code saved successfully.");
-            } catch (Exception e) {
-                logger.severe("Error while saving QR code: " + e.getMessage());
-                JOptionPane.showMessageDialog(this,
-                        "Error while saving QR Code: " + e.getMessage(),
-                        "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-
-    private void scanQRCodeFromFile() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setDialogTitle("Select QR Code image");
-        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter(
-                "Images: (*.png, *.jpg, *.jpeg, *.gif)", "png", "jpg", "jpeg", "gif"));
-
-        int option = fileChooser.showOpenDialog(this);
-        if (option == JFileChooser.APPROVE_OPTION) {
-            File file = fileChooser.getSelectedFile();
-            try {
-                String scannedKey = QRUtil.decodeQRCode(file);
-                if (scannedKey != null && !scannedKey.isEmpty()) {
-                    // Set the scanned key in the CryptoManager
-                    cryptoManager.setOtherUserPublicKey(scannedKey);
-                    JOptionPane.showMessageDialog(this,
-                            "Scanned public key imported successfully.",
-                            "Success", JOptionPane.INFORMATION_MESSAGE);
-
-                    // Visual feedback
-                    chatArea.append("System: Contact public key successfully added.\n");
-                } else {
-                    JOptionPane.showMessageDialog(this,
-                            "No valid QR code found in the image.",
-                            "Warning", JOptionPane.WARNING_MESSAGE);
-                }
-            } catch (Exception e) {
-                logger.severe("Error while scanning QR Code: " + e.getMessage());
-                JOptionPane.showMessageDialog(this,
-                        "Error while decoding il QR Code: " + e.getMessage(),
-                        "Error", JOptionPane.ERROR_MESSAGE);
-            }
-        }
-    }
-
-    public void initializeKeys() {
-        try {
-            this.cryptoManager = new CryptoManager();
-            SecretKey sessionKey = cryptoManager.generateAESKey();
-            cryptoManager.setAesSessionKey(sessionKey);
-
-            // Get your public key as string
-            myPublicKeyString = cryptoManager.getPublicKeyBase64();
-
-            // Generate and display QR code image
-            updateQRCodeImage(myPublicKeyString);
-
-        } catch (Exception e) {
-            JOptionPane.showMessageDialog(this, "Failed to initialize encryption keys.");
-            e.printStackTrace();
-        }
-    }
-
-    private void updateQRCodeImage(String data) {
-        try {
-            // Use QRUtil's new helper method to get BufferedImage in memory
-            BufferedImage qrBufferedImage = QRUtil.generateQRCodeImage(data, 200, 200);
-            ImageIcon qrIcon = new ImageIcon(qrBufferedImage);
-            qrCodeLabel.setIcon(qrIcon);
-        } catch (Exception e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Failed to generate QR Code.");
-        }
-    }
-
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            GUITest client = new GUITest();
-            client.setVisible(true);
-            Connection connection = new Connection();
-            connection.connect();
-            try {
-                client.initializeConnection(connection);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
     }
 }
