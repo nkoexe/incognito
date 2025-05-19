@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.incognito.ClientHandler;
 
 public class Connection {
     private static Logger logger = Logger.getLogger(Connection.class.getName());
@@ -24,6 +23,12 @@ public class Connection {
     private ArrayList<ClientHandler> connectedClients = new ArrayList<>();
     private  Map<String, ClientHandler> usersClientMap = new ConcurrentHashMap<>();
     private Set<String> connectedUsers = ConcurrentHashMap.newKeySet();
+
+    // Data structure for private chat
+    private Map<String, ClientHandler> pendingPrivateChats = new ConcurrentHashMap<>(); // sessionId -> clientHandlerInAttesa
+    private Map<String, PrivateChatSession> activePrivateSessions = new ConcurrentHashMap<>(); // sessionId -> PrivateChatSession
+    private Map<ClientHandler, String> clientToSessionIdMap = new ConcurrentHashMap<>(); // clientHandler -> sessionId (for active sessions)
+
 
     public Connection() {
         try {
@@ -42,6 +47,7 @@ public class Connection {
             return;
         }
 
+        logger.info("Server ready and listening on port " + PORT);
         while (true) {
             try {
                 logger.fine("Listening for a new client...");
@@ -49,71 +55,97 @@ public class Connection {
                 Socket clientSocket = this.socket.accept();
                 logger.fine("Connection established with " + clientSocket.getInetAddress());
 
-                // After connection, handle each client in a new thread
-                // in order not to block main flow.
-                // Client authentication is also done in the dedicated thread
                 ClientHandler clientHandler = new ClientHandler(this, clientSocket);
-                connectedClients.add(clientHandler);
                 clientHandlerPool.execute(clientHandler);
 
-            } catch (Exception e) {
-                logger.severe("Error while accepting client connection");
+            } catch (IOException e) {
+                if (socket.isClosed()) {
+                    logger.info("Server socket closed, stopping listener.");
+                    break;
+                }
+                logger.severe("Error while accepting client connection: " + e.getMessage());
                 e.printStackTrace();
-                continue;
+
+            } catch (Exception e) {
+                logger.severe("Unexpected error in server accept loop: " + e.getMessage());
+                e.printStackTrace();
             }
         }
     }
 
     public void stop() {
-        // todo: send closing connection message to clients
+        logger.info("Attempting to stop server...");
+        broadcast("SERVER_SHUTDOWN"); // Notify all clients about server shutdown
         try {
-            logger.fine("Attempting to close socket...");
-            this.socket.close();
-            clientHandlerPool.shutdown();
+            if (this.socket != null && !this.socket.isClosed()) {
+                this.socket.close();
+            }
         } catch (IOException e) {
-            logger.severe("Error while closing socket");
+            logger.severe("Error while closing server socket: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+            clientHandlerPool.shutdown();
+            logger.info("Server stopped.");
         }
     }
 
     public void broadcast(Object message) {
-        for (ClientHandler client : connectedClients) {
+        for (ClientHandler client : new ArrayList<>(usersClientMap.values())) {
             client.send(message);
         }
     }
 
     //add user to the list of connected users
-    public void registerUser(String username, ClientHandler client) {
+    public void registerUser(String username, ClientHandler clientHandler) {
+        if (isUsernameTaken(username)) {
+            clientHandler.send("USERNAME_TAKEN");
+            return;
+        }
+        usersClientMap.put(username, clientHandler);
         connectedUsers.add(username);
-        usersClientMap.put(username, client);
 
-        // Notify all clients about the new user
-        broadcast("CONNECT:" + username);
+        clientHandler.send("USERNAME_ACCEPTED");
+        logger.info("User " + username + " registered from " + clientHandler.getSocket().getRemoteSocketAddress());
 
-        // Send updated user list to all clients
-        broadcastUserList();
-
-        logger.info("User " + username + " registered");
+        broadcastUserList(); // Send updated user list to all clients
+        broadcast("CONNECT:" + username); // Notify all clients about the new user
     }
 
     public void removeUser(String username, ClientHandler handler) {
+        if (username == null) return; // Avoid null pointer exception
+
         usersClientMap.remove(username);
         connectedUsers.remove(username);
-        connectedClients.remove(handler);
 
-        //Notify all client about the user that left
+        logger.info("User " + username + " removed.");
         broadcast("DISCONNECT:" + username);
-
-        //Send updated user list to all clients
         broadcastUserList();
 
-        logger.info("User " + username + " removed");
+        // To close private chat sessions
+        String sessionId = clientToSessionIdMap.remove(handler);
+        if (sessionId != null) {
+            PrivateChatSession session = activePrivateSessions.remove(sessionId);
+            if (session != null) {
+                ClientHandler peer = session.getOtherClient(handler);
+                if (peer != null) {
+                    clientToSessionIdMap.remove(peer);
+                    peer.send("PEER_DISCONNECTED:" + username); // Notify peer about disconnection
+                    logger.info("Closed private session " + sessionId + " due to disconnect of " + username);
+                }
+            }
+        }
+        // Remove even from pending private chats
+        pendingPrivateChats.values().remove(handler);
     }
 
-    private void broadcastUserList() {
-        String userListStr = String.join(",", connectedUsers);
-        broadcast("USERLIST:" + userListStr);
-        logger.fine("Broadcasting user list: " + userListStr);
+    public void broadcastUserList() {
+        if (connectedUsers.isEmpty()) {
+            broadcast("USERLIST:");
+        } else {
+            String userListStr = String.join(",", connectedUsers);
+            broadcast("USERLIST:" + userListStr);
+        }
+        logger.fine("Broadcasting user list: " + String.join(",", connectedUsers));
     }
 
     // Get client handler by username
@@ -124,5 +156,68 @@ public class Connection {
     // Check if username is already taken
     public boolean isUsernameTaken(String username) {
         return connectedUsers.contains(username);
+    }
+
+    // Methods for private chat session handling
+    public synchronized void handlePrivateChatRequest(ClientHandler requester, String sessionId, String requesterUsername) {
+        if (clientToSessionIdMap.containsKey(requester)) {
+            requester.send("ERROR:Already in a session or pending request.");
+            logger.warning("User " + requesterUsername + " tried to start a new private chat while already in one.");
+            return;
+        }
+
+        if (pendingPrivateChats.containsKey(sessionId)) {
+            ClientHandler peerHandler = pendingPrivateChats.remove(sessionId);
+
+            if (peerHandler == requester) { // Same client sent the request again
+                pendingPrivateChats.put(sessionId, requester); // Re-add to pending
+                requester.send("WAITING_FOR_PEER");
+                logger.info("User " + requesterUsername + " re-initiated wait for session " + sessionId);
+                return;
+            }
+
+            PrivateChatSession newSession = new PrivateChatSession(requester, peerHandler, sessionId);
+            activePrivateSessions.put(sessionId, newSession);
+            clientToSessionIdMap.put(requester, sessionId);
+            clientToSessionIdMap.put(peerHandler, sessionId);
+
+            requester.send("PEER_CONNECTED:" + peerHandler.getUsername() + ":" + sessionId);
+            peerHandler.send("PEER_CONNECTED:" + requesterUsername + ":" + sessionId);
+            logger.info("Private session " + sessionId + " started between " + requesterUsername + " and " + peerHandler.getUsername());
+        } else {
+            pendingPrivateChats.put(sessionId, requester);
+            requester.send("WAITING_FOR_PEER:" + sessionId);
+            logger.info("User " + requesterUsername + " is waiting for a peer for session " + sessionId);
+        }
+    }
+
+    public void forwardPrivateMessage(ClientHandler sender, ChatMessage message) {
+        String sessionId = clientToSessionIdMap.get(sender);
+        if (sessionId == null) {
+            sender.send("ERROR:You are not in an active private chat session.");
+            logger.warning("User " + sender.getUsername() + " tried to send a private message without being in a session.");
+            return;
+        }
+
+        PrivateChatSession session = activePrivateSessions.get(sessionId);
+        if (session == null) {
+            sender.send("ERROR:Private chat session not found.");
+            logger.severe("Session " + sessionId + " not found for user " + sender.getUsername() + " but clientToSessionIdMap had an entry.");
+            clientToSessionIdMap.remove(sender); // Clean up stale entry
+            return;
+        }
+
+        ClientHandler recipient = session.getOtherClient(sender);
+        if (recipient != null) {
+            // IMPORTANTE!!!!!
+            // Assicurati che ChatMessage contenga il sessionId se il client deve conoscerlo
+            // o che il client possa dedurlo dal contesto.
+            // Per ora, il server inoltra semplicemente il messaggio.
+            recipient.send(message);
+            logger.fine("Forwarded private message from " + sender.getUsername() + " to " + recipient.getUsername() + " in session " + sessionId);
+        } else {
+            sender.send("ERROR:Peer not found in your session.");
+            logger.warning("Peer not found for " + sender.getUsername() + " in session " + sessionId);
+        }
     }
 }

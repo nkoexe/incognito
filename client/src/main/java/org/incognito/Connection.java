@@ -20,11 +20,11 @@ public class Connection {
         return socket;
     }
 
-    public void connect() {
+    public boolean connect() {
         try {
             socket = new Socket(host, port);
             logger.info("Connected to server at " + host + ":" + port);
-
+            return true;
         } catch (UnknownHostException e) {
             logger.severe("Unknown host: " + host);
             e.printStackTrace();
@@ -35,6 +35,7 @@ public class Connection {
             logger.severe("Unexpected error while connecting");
             e.printStackTrace();
         }
+        return false;
     }
 
     public void close() {

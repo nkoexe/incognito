@@ -35,6 +35,7 @@ public class GUITest extends JFrame {
     private String userName;
 
     private CryptoManager cryptoManager;
+    private volatile boolean isSessionActive = false; // Flag to indicate if a session is active
 
     public GUITest(CryptoManager cryptoManager) {
         this.cryptoManager = cryptoManager;
@@ -64,7 +65,7 @@ public class GUITest extends JFrame {
 
         // Users list on the right
         usersModel = new DefaultListModel<>();
-        usersModel.addElement("You");
+//        usersModel.addElement("You");
         usersList = new JList<>(usersModel);
         usersList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
@@ -93,6 +94,10 @@ public class GUITest extends JFrame {
         add(chatScrollPane, BorderLayout.CENTER);
         add(usersScrollPane, BorderLayout.EAST);
         add(inputPanel, BorderLayout.SOUTH);
+
+        // Disable message input and send button until connected
+        messageField.setEnabled(false);
+        sendButton.setEnabled(false);
 
         // Event listeners
         sendButton.addActionListener(this::sendMessage);
@@ -133,14 +138,35 @@ public class GUITest extends JFrame {
                     "Username",
                     JOptionPane.QUESTION_MESSAGE);
 
+            // Check if inputName is null or empty
             if (inputName == null || inputName.trim().isEmpty()) {
                 inputName = "Guest" + (int) (Math.random() * 1000);
             }
 
+            this.userName = inputName.trim();
+
+            // Send username to server
+            logger.info("Sending username: " + inputName);
+            writeThread.sendMessage("USERLIST:" + this.userName);
+
+            // Update UI with current user's name
+            setTitle("Incognito Chat - " + this.userName);
+            usersModel.clear();
+            usersModel.addElement(this.userName + " (you)");
+
             // New comand for 1-to-1 chat
             String sessionId = generateSessionId();
             logger.info("Sending message PRIVATE_CHAT with sessionId: " + sessionId);
-            writeThread.sendMessage("PRIVATE_CHAT:" + inputName + ":" + sessionId);
+
+            if (sessionId != null) {
+                writeThread.sendMessage("PRIVATE_CHAT:" + inputName + ":" + sessionId);
+            } else {
+                logger.warning("Session ID is null.");
+                JOptionPane.showMessageDialog(this, "Session ID cannot be null.", "Error", JOptionPane.ERROR_MESSAGE);
+                logger.warning("Couldn't send session ID to server.");
+                disconnect();
+                return;
+            }
 
             try {
                 Object response = loginQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
@@ -148,57 +174,72 @@ public class GUITest extends JFrame {
                 if (response instanceof String str) {
                     switch (str) {
                         case "USERNAME_ACCEPTED":
-                            this.userName = inputName;
+                            chatArea.append("Username '" + userName + "' accepted.\n");
                             break;
                         case "USERNAME_TAKEN":
-                            JOptionPane.showMessageDialog(this, "Nome utente già in uso. Riprova.");
-                            // Chiamata ricorsiva per richiedere un nuovo nome utente
+                            JOptionPane.showMessageDialog(this, "Username already in use. Retry.");
+                            // Recursively call initializeConnection to retry
                             initializeConnection(connection);
                             return;
                         case "WAITING_FOR_PEER":
-                            chatArea.append("In attesa che il tuo contatto si connetta...\n");
+                            chatArea.append("Waiting for contact to connect...\n");
+                            isSessionActive = false; // Reset session active flag
+                            messageField.setEnabled(false);
+                            sendButton.setEnabled(false);
                             break;
                         case "PEER_CONNECTED":
-                            chatArea.append("Il tuo contatto si è connesso! Puoi iniziare a chattare.\n");
+                            chatArea.append("Contact connected! You can now start chatting.\n");
+                            // Enable message input and send button happens when ReadThread processes
+                            // PEER_CONNECTED:namePeer:sessionId and will call handlePeerConnected
                             break;
                         default:
                             logger.warning("Risposta del server non riconosciuta: " + str);
                             JOptionPane.showMessageDialog(this, "Risposta del server inattesa. Riprova.");
+                            disconnect();
                             break;
                     }
                 } else if (response == null) {
                     chatArea.append("Server response is null.\n");
                     logger.warning("Timout waiting for server response.");
+                    disconnect();
                 }
             } catch (InterruptedException e) {
                 logger.severe("Error while waiting for server response: " + e.getMessage());
                 chatArea.append("Error while waiting for server response: " + e.getMessage() + "\n");
+                Thread.currentThread().interrupt(); // Restore the interrupted status
+                disconnect();
             }
 
-
-            // Update UI
-            setTitle("Incognito Chat - " + userName);
-            updateUsersList(userName);
         } else {
             chatArea.append("Failed to connect to server.\n");
-            return;
         }
     }
 
     // Method to generate a unique session ID
     private String generateSessionId() {
         try {
-            String combinedKeys = cryptoManager.getPublicKeyBase64() + cryptoManager.getOtherUserPublicKeyBase64();
+            String pk1 = cryptoManager.getPublicKeyBase64();
+            String pk2 = cryptoManager.getOtherUserPublicKeyBase64();
+
+            if (pk1 == null || pk2 == null) {
+                logger.severe("One or both public keys are null for session ID generation.");
+                return "fallback-session-" + System.currentTimeMillis(); // Fallback
+            }
+            // Order the keys to ensure uniqueness and consistency
+            String combinedKeys = pk1.compareTo(pk2) < 0 ? pk1 + pk2 : pk2 + pk1;
+
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] hash = digest.digest(combinedKeys.getBytes(StandardCharsets.UTF_8));
             return Base64.getEncoder().encodeToString(hash);
         } catch (Exception e) {
             logger.severe("Error generating session ID: " + e.getMessage());
-            return "session-" + System.currentTimeMillis(); // Fallback
+            return "error-session-" + System.currentTimeMillis(); // Fallback
         }
-
     }
 
+    // PER I BRO!!!!!!!!!!
+    // Questo metodo dovremmo tenerlo se aggiungiamo chat di gruppo. finchè non lo facciamo
+    // basta handlePeerConnected e handleServerNotification (Controllare però se viene usato dal server che non mi ricordo)
     void updateUsersList(String userListStr) {
         try {
             SwingUtilities.invokeLater(() -> {
@@ -230,13 +271,14 @@ public class GUITest extends JFrame {
 
     // Method to remove a user from the list
     public void removeUser(String username) {
-        for (int i = 0; i < usersModel.getSize(); i++) {
-            String user = usersModel.getElementAt(i);
-            if (user.equals(username)) {
-                usersModel.removeElementAt(i);
-                break;
+        SwingUtilities.invokeLater(() -> {
+            for (int i = 0; i < usersModel.getSize(); i++) {
+                if (usersModel.getElementAt(i).startsWith(username + " ")) { // Checks if the username is in the list
+                    usersModel.removeElementAt(i);
+                    break;
+                }
             }
-        }
+        });
     }
 
     String getUserName() {
@@ -265,19 +307,30 @@ public class GUITest extends JFrame {
             }
 
             chatArea.append("Disconnected from server.\n");
+            logger.info("Disconnected from server.");
         } catch (Exception e) {
+            logger.severe("Error during disconnection: " + e.getMessage());
             e.printStackTrace();
+        } finally {
+            isSessionActive = false;
+            if (messageField != null) messageField.setEnabled(false);
+            if (sendButton != null) sendButton.setEnabled(false);
         }
     }
 
     private void sendMessage(ActionEvent e) {
+        if (!isSessionActive) {
+            SwingUtilities.invokeLater(() -> chatArea.append("[System] Unable to send: session not active or peer not connected.\n"));
+            return;
+        }
+
         String message = messageField.getText().trim();
         if (message.isEmpty())
             return;
 
-        if (writeThread == null) {
-            chatArea.append("ERROR: Cannot send message - not connected to server\n");
-            logger.severe("WriteThread is null when trying to send: " + message);
+        if (writeThread == null || !writeThread.isAlive()) {
+            chatArea.append("ERROR: Cannot send message - not connected to server or writer thread inactive\n");
+            logger.severe("WriteThread is null or not alive when trying to send: " + message);
             return;
         }
 
@@ -292,5 +345,53 @@ public class GUITest extends JFrame {
         logger.info("Sending message: " + message);
         //writeThread.sendMessage(userName + ": " + message);
         writeThread.sendMessage(message);
+    }
+
+    public void handlePeerConnected(String peerUsername, String sessionId) {
+        this.isSessionActive = true;
+        SwingUtilities.invokeLater(() -> {
+            messageField.setEnabled(true);
+            sendButton.setEnabled(true);
+            chatArea.append("[Sistema] Connesso con " + peerUsername + ". Sessione " + sessionId + " attiva.\n");
+
+            // PER I BROOO!!!!!
+            // Aggiorna la lista utenti per la chat 1-a-1
+            usersModel.clear();
+            if (this.userName != null) { // Check if userName is initialized
+                usersModel.addElement(this.userName + " (you)");
+            }
+            usersModel.addElement(peerUsername + " (contact)");
+            logger.info("Peer connected: " + peerUsername + ", session: " + sessionId + ". Chat UI enabled.");
+        });
+    }
+
+    public void handleServerNotification(String serverMessage) {
+        SwingUtilities.invokeLater(() -> {
+            chatArea.append("Server: " + serverMessage + "\n");
+            if (serverMessage.startsWith("WAITING_FOR_PEER")) {
+                chatArea.append("[System] Waiting for peer...\n");
+                this.isSessionActive = false;
+                messageField.setEnabled(false);
+                sendButton.setEnabled(false);
+                logger.info("Waiting for peer to connect... Chat UI disabled");
+            } else if (serverMessage.startsWith("PEER_DISCONNECTED")) {
+                this.isSessionActive = false;
+                messageField.setEnabled(false);
+                sendButton.setEnabled(false);
+                chatArea.append("[System] Peer disconnected.\n");
+                logger.info("Peer disconnected. Chat UI disabled.");
+                if (usersModel.size() > 0) {
+                    for (int i = 0; i < usersModel.getSize(); i++) {
+                        if (usersModel.getElementAt(i).contains(" (contact)")) {
+                            usersModel.removeElementAt(i);
+                            break;
+                        }
+                    }
+                }
+            } else if (serverMessage.startsWith("ERROR:You are not in an active private chat session.")) {
+                chatArea.append("[System] Server error: You are not in an active chat session.\n");
+                logger.warning("Received 'not in an active private chat session' error from server");
+            }
+        });
     }
 }

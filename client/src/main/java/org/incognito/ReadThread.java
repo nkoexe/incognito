@@ -67,6 +67,7 @@ public class ReadThread extends Thread {
                             msgStr.startsWith("DISCONNECT:") ||
                             msgStr.startsWith("SERVER:") ||
                             msgStr.startsWith("ERROR:") ||
+                            msgStr.startsWith("PEER_CONNECTED:") ||
                             msgStr.startsWith("INFO:")) {
                         processSystemMessage(msgStr);
                     } else {
@@ -120,6 +121,13 @@ public class ReadThread extends Thread {
         } else if (message.startsWith("INFO:")) {
             String infoMessage = message.substring("INFO:".length());
             client.appendMessage("[Info] " + infoMessage);
+        } else if (message.startsWith("PEER_CONNECTED:")) {
+            String[] parts = message.split(":", 3);
+             if (parts.length == 3) {
+                 client.handlePeerConnected(parts[1], parts[2]); // pass the sender and the public key
+             }
+        } else {
+            client.handleServerNotification(message);
         }
     }
 
@@ -145,4 +153,5 @@ public class ReadThread extends Thread {
             return null;
         }
     }
+
 }

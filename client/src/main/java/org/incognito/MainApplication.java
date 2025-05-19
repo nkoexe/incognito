@@ -29,10 +29,25 @@ public class MainApplication {
 
                         // Initiialize the connection
                         Connection connection = new Connection();
-                        // Importante da sistemare: !!!!!!!!!!!!!!!!!!
-                        // Assumiamo che connection.connect() prepari la connessione.
-                        // Se fallisce, initializeConnection dovrebbe gestirlo o lanciare un errore.
-                        connection.connect(); // Questo metodo dovrebbe essere reso più robusto o restituire lo stato
+
+                        boolean connected = false;
+                        try {
+                            connected = connection.connect();
+                            if (!connected) {
+                                logger.severe("Impossible connecting to server.");
+                                JOptionPane.showMessageDialog(null, "Impossible connecting to server.", "Connection error", JOptionPane.ERROR_MESSAGE);
+                                chatClient.dispose(); // Close the chat window
+                                System.exit(1); // Exit the application
+                                return; // Exit the listening thread if method fails
+                            }
+
+                        } catch (/*IOException*/ Exception e) { // TODO: Handle IOException
+                            logger.severe("Failed to connect to server: " + e.getMessage());
+                            JOptionPane.showMessageDialog(null, "Failed to connect to server: " + e.getMessage(), "Connection error", JOptionPane.ERROR_MESSAGE);
+                            chatClient.dispose(); // Close the chat window
+                            System.exit(1);
+                            return;
+                        }
 
                         try {
                             chatClient.initializeConnection(connection);

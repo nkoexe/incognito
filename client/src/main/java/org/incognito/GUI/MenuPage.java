@@ -64,33 +64,50 @@ public class MenuPage extends JFrame {
     }
 
     private void initComponents() {
+        // Choice Panel Host/client
+        JPanel choicePanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        choicePanel.setBorder(BorderFactory.createTitledBorder("Choose role"));
+        JRadioButton hostButton = new JRadioButton("Host");
+        JRadioButton guestButton = new JRadioButton("Client");
+        ButtonGroup group = new ButtonGroup();
+        group.add(hostButton);
+        group.add(guestButton);
+        choicePanel.add(hostButton);
+        choicePanel.add(guestButton);
+
         // QR Code Panel
         JPanel qrPanel = new JPanel(new BorderLayout());
-        qrPanel.setBorder(BorderFactory.createTitledBorder("Your Public Key QR Code"));
+        qrPanel.setBorder(BorderFactory.createTitledBorder("Your public key QR Code"));
         qrCodeLabel = new JLabel();
         qrCodeLabel.setHorizontalAlignment(SwingConstants.CENTER);
         qrCodeLabel.setPreferredSize(new Dimension(200, 200));
         qrPanel.add(qrCodeLabel, BorderLayout.CENTER);
 
         // Button Panel
-        JPanel buttonPanel = new JPanel(new GridLayout(4, 1, 10, 10));
+        JPanel buttonPanel = new JPanel(new GridLayout(5, 1, 10, 10));
         buttonPanel.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
 
-        saveQRButton = new JButton("Save My QR Code");
+        saveQRButton = new JButton("Save QR Code");
         saveQRButton.addActionListener(e -> saveMyQRCodeToFile());
         buttonPanel.add(saveQRButton);
 
-        scanQRButton = new JButton("Scan Contact's QR Code");
+        scanQRButton = new JButton("Scan Contact QR Code");
+        scanQRButton.setEnabled(false);
         scanQRButton.addActionListener(e -> scanContactQRCodeFromFile());
         buttonPanel.add(scanQRButton);
 
-        generateAndShareKeyButton = new JButton("Generate and Share Key");
+        generateAndShareKeyButton = new JButton("Generate and Share AES Key");
         generateAndShareKeyButton.setEnabled(false);
         generateAndShareKeyButton.addActionListener(e -> generateAndShareAESKey());
         buttonPanel.add(generateAndShareKeyButton);
 
-        proceedButton = new JButton("Proceed to Chat");
-        proceedButton.setEnabled(false); // Enabled after scanning
+        JButton importAESKeyButton = new JButton("Import Encrypted AES Key");
+        importAESKeyButton.setEnabled(false);
+        importAESKeyButton.addActionListener(e -> importEncryptedAESKey());
+        buttonPanel.add(importAESKeyButton);
+
+        proceedButton = new JButton("Join Chat");
+        proceedButton.setEnabled(false);
         proceedButton.addActionListener(e -> {
             if (menuListener != null) {
                 menuListener.onKeysExchangedAndProceed(this.cryptoManager, this);
@@ -98,7 +115,26 @@ public class MenuPage extends JFrame {
         });
         buttonPanel.add(proceedButton);
 
-        add(qrPanel, BorderLayout.CENTER);
+        // Actions for Host/Client selection
+        hostButton.addActionListener(e -> {
+            isKeyInitiator = true;
+            scanQRButton.setEnabled(true);
+            generateAndShareKeyButton.setEnabled(false);
+            importAESKeyButton.setEnabled(false);
+        });
+
+        guestButton.addActionListener(e -> {
+            isKeyInitiator = false;
+            scanQRButton.setEnabled(true);
+            generateAndShareKeyButton.setEnabled(false);
+            importAESKeyButton.setEnabled(true);
+        });
+
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.add(choicePanel, BorderLayout.NORTH);
+        mainPanel.add(qrPanel, BorderLayout.CENTER);
+
+        add(mainPanel, BorderLayout.CENTER);
         add(buttonPanel, BorderLayout.SOUTH);
     }
 
@@ -171,8 +207,7 @@ public class MenuPage extends JFrame {
                     JOptionPane.showMessageDialog(this,
                             "Contact's public key successfully imported.",
                             "Success", JOptionPane.INFORMATION_MESSAGE);
-                    generateAndShareKeyButton.setEnabled(true);
-                    isKeyInitiator = true; // Set this user as the key initiator
+                    if (isKeyInitiator) generateAndShareKeyButton.setEnabled(true);
                 } else {
                     JOptionPane.showMessageDialog(this,
                             "No valid QR code found in the image or key is empty.",
@@ -188,6 +223,7 @@ public class MenuPage extends JFrame {
     }
 
     private void generateAndShareAESKey() {
+
         try {
             if (isKeyInitiator) {
                 SecretKey aesKey = cryptoManager.generateAESKey();
