@@ -3,6 +3,7 @@ package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
 import java.util.Base64;
+import org.incognito.ChatMessage;
 
 import java.io.ObjectOutputStream;
 import java.io.IOException;

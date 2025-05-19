@@ -1,6 +1,7 @@
 package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
+import org.incognito.ChatMessage;
 
 import javax.swing.*;
 import java.util.Base64;

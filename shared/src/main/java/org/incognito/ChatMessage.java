@@ -2,11 +2,11 @@ package org.incognito;
 
 import java.io.Serializable;
 
-public class ChatMessage {
+public class ChatMessage implements Serializable {
     private static final long serialVersionUID = 1L;
 
-    private final String sender;
-    private final String encryptedContent;
+    private String sender;
+    private String encryptedContent;
 
     public ChatMessage(String sender, String encryptedContent) {
         this.sender = sender;
@@ -19,5 +19,10 @@ public class ChatMessage {
 
     public String getEncryptedContent() {
         return encryptedContent;
+    }
+
+    @Override
+    public String toString() {
+        return "ChatMessage{sender='" + sender + "'}";
     }
 }

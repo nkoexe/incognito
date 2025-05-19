@@ -23,7 +23,7 @@ public class MenuPage extends JFrame {
     private CryptoManager cryptoManager;
     private String myPublicKeyString;
     private MenuListener menuListener;
-    private boolean isKeyInitatior = false; // Flag to indicate if this user is the key initiator
+    private boolean isKeyInitiator = false; // Flag to indicate if this user is the key initiator
 
     private JLabel qrCodeLabel;
     private JButton scanQRButton;
@@ -172,7 +172,7 @@ public class MenuPage extends JFrame {
                             "Contact's public key successfully imported.",
                             "Success", JOptionPane.INFORMATION_MESSAGE);
                     generateAndShareKeyButton.setEnabled(true);
-                    isKeyInitatior = true; // Set this user as the key initiator
+                    isKeyInitiator = true; // Set this user as the key initiator
                 } else {
                     JOptionPane.showMessageDialog(this,
                             "No valid QR code found in the image or key is empty.",
@@ -189,7 +189,7 @@ public class MenuPage extends JFrame {
 
     private void generateAndShareAESKey() {
         try {
-            if (isKeyInitatior) {
+            if (isKeyInitiator) {
                 SecretKey aesKey = cryptoManager.generateAESKey();
                 cryptoManager.setAesSessionKey(aesKey);
 
@@ -267,8 +267,8 @@ public class MenuPage extends JFrame {
 
         try {
             String testMessage = "Test Message";
-            String encrypted = cryptoManager.encryptWithAES(testMessage);
-            String decrypted = cryptoManager.decryptWithAES(encrypted);
+            String encrypted = cryptoManager.encrypt(testMessage);
+            String decrypted = cryptoManager.decrypt(encrypted);
 
             if (testMessage.equals(decrypted)) {
                 logger.info("AES encryption/decryption test succeeded!");

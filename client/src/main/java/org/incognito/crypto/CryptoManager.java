@@ -119,4 +119,27 @@ public class CryptoManager {
 
         return new String(decryptedBytes, StandardCharsets.UTF_8);
     }
+
+    public SecretKey getAesSessionKey() {
+        if (aesSessionKey == null) {
+            throw new IllegalStateException("AES session key has not been set.");
+        }
+        return aesSessionKey;
+    }
+
+    public String encrypt(String plainText) throws Exception{
+        if (aesSessionKey == null) {
+            throw new IllegalStateException("AES session key has not been set.");
+        }
+        byte[] encrypted = encryptAES(plainText);
+        return Base64.getEncoder().encodeToString(encrypted);
+    }
+
+    public String decrypt(String encryptedText) throws Exception{
+        if (aesSessionKey == null) {
+            throw new IllegalStateException("AES session key has not been set.");
+        }
+        byte[] decoded = Base64.getDecoder().decode(encryptedText);
+        return decryptAES(decoded);
+    }
 }
