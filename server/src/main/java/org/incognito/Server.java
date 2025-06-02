@@ -14,5 +14,5 @@ public class Server {
 
         logger.info("Server ready");
         server.start(); // this function handles client connectio\ns - it is blocking.
-    }
+    } 
 }

@@ -80,50 +80,55 @@ public class ClientHandler implements Runnable {
             logger.info("User " + username + " successfully authenticated. Ready for messages.");
 
             // Main loop for handling messages
+            label:
             while (!Thread.currentThread().isInterrupted() && !socket.isClosed()) {
                 Object obj = inputStream.readObject();
 
-                if (obj instanceof String) {
-                    String command = (String) obj;
-                    if (command.startsWith("PRIVATE_CHAT:")) {
-                        // INFO PER I BRO!!!!
-                        // Formato atteso: "PRIVATE_CHAT:sessionId"
-                        // Il client invia il suo username nel messaggio originale, ma il server lo conosce già come this.username
-                        // Il client invia "PRIVATE_CHAT:suoNomeUtente:sessionId"
-                        // Il server usa this.username e il sessionId fornito.
-                        String[] parts = command.split(":", 3); // PRIVATE_CHAT, usernameMittente, sessionId
-                        if (parts.length == 3) {
-                            String sessionId = parts[2];
-                            server.handlePrivateChatRequest(this, sessionId, this.username);
-                        } else {
-                            send("ERROR:Invalid PRIVATE_CHAT command format. Expected PRIVATE_CHAT:yourUsername:sessionId");
-                            logger.warning("User " + username + " sent invalid PRIVATE_CHAT command: " + command);
+                switch (obj) {
+                    case String command:
+                        if (command.startsWith("PRIVATE_CHAT:")) {
+                            // INFO PER I BRO!!!!
+                            // Formato atteso: "PRIVATE_CHAT:sessionId"
+                            // Il client invia il suo username nel messaggio originale, ma il server lo conosce già come this.username
+                            // Il client invia "PRIVATE_CHAT:suoNomeUtente:sessionId"
+                            // Il server usa this.username e il sessionId fornito.
+                            String[] parts = command.split(":", 3); // PRIVATE_CHAT, usernameMittente, sessionId
+
+                            if (parts.length == 3) {
+                                String sessionId = parts[2];
+                                server.handlePrivateChatRequest(this, sessionId, this.username);
+                            } else {
+                                send("ERROR:Invalid PRIVATE_CHAT command format. Expected PRIVATE_CHAT:yourUsername:sessionId");
+                                logger.warning("User " + username + " sent invalid PRIVATE_CHAT command: " + command);
+                            }
+                        } else if (command.equalsIgnoreCase("REQUEST_USERLIST")) { // Comando esplicito per richiedere la lista
+                            server.broadcastUserList(); // Invia solo a questo client? O a tutti?
+
+                            // Per ora, broadcastUserList invia a tutti.
+                            // Se si vuole inviare solo a questo client:
+                            // String userListStr = String.join(",", server.getConnectedUsers());
+                            // send("USERLIST:" + userListStr);
                         }
-                    } else if (command.equalsIgnoreCase("REQUEST_USERLIST")) { // Comando esplicito per richiedere la lista
-                        server.broadcastUserList(); // Invia solo a questo client? O a tutti?
-                        // Per ora, broadcastUserList invia a tutti.
-                        // Se si vuole inviare solo a questo client:
-                        // String userListStr = String.join(",", server.getConnectedUsers());
-                        // send("USERLIST:" + userListStr);
-                    }
-                    // Altri comandi String potrebbero essere gestiti qui (es. PING, PONG, etc.)
-                    else {
-                        logger.info("Received unhandled String command from " + username + ": " + command);
-                        // Potrebbe essere un messaggio di chat pubblico se non si usa ChatMessage per quello
-                        // server.broadcast(username + ": " + command); // Esempio per chat pubblica testuale
-                    }
-                } else if (obj instanceof ChatMessage) {
-                    ChatMessage chatMsg = (ChatMessage) obj;
-                    // Ora, invece di fare broadcast, inoltra il messaggio privato
-                    // Il ChatMessage dovrebbe contenere informazioni sulla sessione o essere
-                    // implicitamente parte della sessione corrente del ClientHandler.
-                    // La logica in Connection.forwardPrivateMessage userà clientToSessionIdMap.
-                    server.forwardPrivateMessage(this, chatMsg);
-                } else if (obj == null) { // Stream closed or null object received (sent by client)
-                    logger.info("Client " + username + " closed the stream (null object received).");
-                    break; // Exit the loop if null object is received
-                } else {
-                    logger.warning("Received unknown object type from " + username + ": " + obj.getClass().getName());
+                        // Altri comandi String potrebbero essere gestiti qui (es. PING, PONG, etc.)
+                        else {
+                            logger.info("Received unhandled String command from " + username + ": " + command);
+                            // Potrebbe essere un messaggio di chat pubblico se non si usa ChatMessage per quello
+                            // server.broadcast(username + ": " + command); // Esempio per chat pubblica testuale
+                        }
+                        break;
+                    case ChatMessage chatMsg:
+                        // Ora, invece di fare broadcast, inoltra il messaggio privato
+                        // Il ChatMessage dovrebbe contenere informazioni sulla sessione o essere
+                        // implicitamente parte della sessione corrente del ClientHandler.
+                        // La logica in Connection.forwardPrivateMessage userà clientToSessionIdMap.
+                        server.forwardPrivateMessage(this, chatMsg);
+                        break;
+                    case null: // Stream closed or null object received (sent by client)
+                        logger.info("Client " + username + " closed the stream (null object received).");
+                        break label; // Exit the loop if null object is received
+                    default:
+                        logger.warning("Received unknown object type from " + username + ": " + obj.getClass().getName());
+                        break;
                 }
             }
 

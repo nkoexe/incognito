@@ -2,6 +2,7 @@ package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
 import org.incognito.crypto.QRUtil;
+import org.incognito.ChatSessionLogger;
 
 import javax.crypto.SecretKey;
 import javax.swing.*;
@@ -72,10 +73,10 @@ public class GUITest extends JFrame {
             public Component getListCellRendererComponent(JList<?> list, Object value, int index,
                                                           boolean isSelected, boolean cellHasFocus) {
                 Component renderer = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                if (value.toString().contains(" (tu)")) {
+                if (value.toString().contains(" (you)")) {
                     renderer.setFont(renderer.getFont().deriveFont(Font.BOLD));
-                } else if (value.toString().contains(" (contatto)")) {
-                    renderer.setForeground(new Color(0, 102, 204)); // Blu per il contatto
+                } else if (value.toString().contains(" (contact)")) {
+                    renderer.setForeground(new Color(0, 102, 204)); // Blu for contact
                 }
                 return renderer;
             }
@@ -154,12 +155,12 @@ public class GUITest extends JFrame {
             usersModel.clear();
             usersModel.addElement(this.userName + " (you)");
 
-            // New comand for 1-to-1 chat
+            // New for 1-to-1 chat
             String sessionId = generateSessionId();
-            logger.info("Sending message PRIVATE_CHAT with sessionId: " + sessionId);
 
             if (sessionId != null) {
                 writeThread.sendMessage("PRIVATE_CHAT:" + inputName + ":" + sessionId);
+                logger.info("Sending message PRIVATE_CHAT with sessionId: " + sessionId);
             } else {
                 logger.warning("Session ID is null.");
                 JOptionPane.showMessageDialog(this, "Session ID cannot be null.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -193,14 +194,14 @@ public class GUITest extends JFrame {
                             // PEER_CONNECTED:namePeer:sessionId and will call handlePeerConnected
                             break;
                         default:
-                            logger.warning("Risposta del server non riconosciuta: " + str);
-                            JOptionPane.showMessageDialog(this, "Risposta del server inattesa. Riprova.");
+                            logger.warning("Unknown server response: " + str);
+                            JOptionPane.showMessageDialog(this, "Unknown server response. Retry.");
                             disconnect();
                             break;
                     }
                 } else if (response == null) {
                     chatArea.append("Server response is null.\n");
-                    logger.warning("Timout waiting for server response.");
+                    logger.warning("Timeout waiting for server response.");
                     disconnect();
                 }
             } catch (InterruptedException e) {
@@ -320,11 +321,13 @@ public class GUITest extends JFrame {
 
     private void sendMessage(ActionEvent e) {
         if (!isSessionActive) {
+            ChatSessionLogger.logWarning("Attempted to send message while session is not active.");
             SwingUtilities.invokeLater(() -> chatArea.append("[System] Unable to send: session not active or peer not connected.\n"));
             return;
         }
 
         String message = messageField.getText().trim();
+        ChatSessionLogger.logInfo("Attempting to send message: " + message.substring(0, Math.min(20, message.length())) + "...");
         if (message.isEmpty())
             return;
 
@@ -349,10 +352,11 @@ public class GUITest extends JFrame {
 
     public void handlePeerConnected(String peerUsername, String sessionId) {
         this.isSessionActive = true;
+        ChatSessionLogger.logInfo("Peer connected: " + peerUsername + ", session: " + sessionId);
         SwingUtilities.invokeLater(() -> {
             messageField.setEnabled(true);
             sendButton.setEnabled(true);
-            chatArea.append("[Sistema] Connesso con " + peerUsername + ". Sessione " + sessionId + " attiva.\n");
+            chatArea.append("[System] Connected with " + peerUsername + ". Session " + sessionId + " active.\n");
 
             // PER I BROOO!!!!!
             // Aggiorna la lista utenti per la chat 1-a-1

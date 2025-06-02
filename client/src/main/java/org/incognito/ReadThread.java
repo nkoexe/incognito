@@ -2,6 +2,7 @@ package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
 import org.incognito.ChatMessage;
+import org.incognito.ChatSessionLogger;
 
 import javax.swing.*;
 import java.util.Base64;
@@ -124,6 +125,7 @@ public class ReadThread extends Thread {
         } else if (message.startsWith("PEER_CONNECTED:")) {
             String[] parts = message.split(":", 3);
              if (parts.length == 3) {
+                 ChatSessionLogger.logInfo("Peer connected: " + parts[1] + " with public key: " + parts[2]);
                  client.handlePeerConnected(parts[1], parts[2]); // pass the sender and the public key
              }
         } else {

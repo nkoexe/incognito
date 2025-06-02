@@ -1,5 +1,7 @@
 package org.incognito;
 
+import org.incognito.ChatSessionLogger;
+
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -181,20 +183,31 @@ public class Connection {
             clientToSessionIdMap.put(requester, sessionId);
             clientToSessionIdMap.put(peerHandler, sessionId);
 
+            ChatSessionLogger.logInfo("Private chat session " + sessionId + " created between " + requesterUsername + " and " + peerHandler.getUsername());
+
             requester.send("PEER_CONNECTED:" + peerHandler.getUsername() + ":" + sessionId);
             peerHandler.send("PEER_CONNECTED:" + requesterUsername + ":" + sessionId);
             logger.info("Private session " + sessionId + " started between " + requesterUsername + " and " + peerHandler.getUsername());
         } else {
             pendingPrivateChats.put(sessionId, requester);
             requester.send("WAITING_FOR_PEER:" + sessionId);
+            ChatSessionLogger.logInfo("User " + requesterUsername + " is waiting for a peer for session " + sessionId);
             logger.info("User " + requesterUsername + " is waiting for a peer for session " + sessionId);
         }
     }
 
     public void forwardPrivateMessage(ClientHandler sender, ChatMessage message) {
+        String senderUsername = sender.getUsername();
+        if (senderUsername == null && sender.getSocket() != null){
+            senderUsername = "[NoUsername:" + sender.getSocket().getRemoteSocketAddress() + "]";
+        } else if (senderUsername == null) {
+            senderUsername = "[NoUsername:SocketInfoUnavailable]";
+        }
+
         String sessionId = clientToSessionIdMap.get(sender);
         if (sessionId == null) {
             sender.send("ERROR:You are not in an active private chat session.");
+            ChatSessionLogger.logWarning("User " + senderUsername + " tried to send a private message without being in a session.");
             logger.warning("User " + sender.getUsername() + " tried to send a private message without being in a session.");
             return;
         }
@@ -214,6 +227,7 @@ public class Connection {
             // o che il client possa dedurlo dal contesto.
             // Per ora, il server inoltra semplicemente il messaggio.
             recipient.send(message);
+            ChatSessionLogger.logInfo("Forwarded private message from " + senderUsername + " to " + recipient.getUsername() + " in session " + sessionId);
             logger.fine("Forwarded private message from " + sender.getUsername() + " to " + recipient.getUsername() + " in session " + sessionId);
         } else {
             sender.send("ERROR:Peer not found in your session.");
