@@ -12,3 +12,7 @@ build/
 .idea/
 .idea_modules/
 .vscode/
+
+# Log
+*.log
+*.log*

@@ -37,6 +37,11 @@ public class ReadThread extends Thread {
     this.loginResponseQueue = loginResponseQueue;
 
     try {
+      // Ensure socket is not closed before creating input stream
+      if (socket.isClosed()) {
+        logger.severe("Socket is closed, cannot create input stream");
+        return;
+      }
       inputStream = new ObjectInputStream(socket.getInputStream());
     } catch (IOException ex) {
       logger.severe("Error getting input stream: " + ex.getMessage());
@@ -133,8 +138,21 @@ public class ReadThread extends Thread {
     } else if (message.startsWith("PEER_CONNECTED:")) {
       String[] parts = message.split(":", 3);
       if (parts.length == 3) {
-        ChatSessionLogger.logInfo("Peer connected: " + parts[1] + " with public key: " + parts[2]);
-        client.handlePeerConnected(parts[1], parts[2]); // pass the sender and the public key
+        String peerUsername = parts[1];
+        String sessionId = parts[2];
+
+        ChatSessionLogger.logInfo("Peer connected: " + peerUsername + " with session: " + sessionId);
+        client.handlePeerConnected(peerUsername, sessionId);
+
+        // Only the first user (alphabetically) starts the key exchange to avoid
+        // duplicates
+        if (client.getUserName().compareTo(peerUsername) < 0) {
+          logger.info("Starting key exchange as initiator with " + peerUsername);
+          AutoKeyExchange.performKeyExchange(peerUsername, client.getUserName(), cryptoManager,
+              client.getWriteThread());
+        } else {
+          logger.info("Waiting for key exchange from " + peerUsername);
+        }
       }
     } else {
       client.handleServerNotification(message);

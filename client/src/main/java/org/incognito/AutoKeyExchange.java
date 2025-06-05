@@ -2,12 +2,16 @@ package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
 import javax.crypto.SecretKey;
+import javax.swing.SwingUtilities;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 public class AutoKeyExchange {
   private static final Logger logger = Logger.getLogger(AutoKeyExchange.class.getName());
+
+  // Track active key exchanges to prevent duplicates
+  private static final java.util.Set<String> activeExchanges = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
   public static CompletableFuture<Boolean> performKeyExchange(
       String targetUsername,
@@ -17,6 +21,17 @@ public class AutoKeyExchange {
 
     return CompletableFuture.supplyAsync(() -> {
       try {
+        // Create a unique exchange identifier
+        String exchangeKey = currentUsername.compareTo(targetUsername) < 0
+            ? currentUsername + "-" + targetUsername
+            : targetUsername + "-" + currentUsername;
+
+        // Check if exchange is already in progress
+        if (!activeExchanges.add(exchangeKey)) {
+          logger.info("Key exchange already in progress with " + targetUsername);
+          return true; // Already in progress, consider it successful
+        }
+
         logger.info("Starting automatic key exchange with " + targetUsername);
 
         // Step 1: Send initiation request
@@ -24,14 +39,17 @@ public class AutoKeyExchange {
             KeyExchangeMessage.Type.INITIATE_EXCHANGE,
             currentUsername,
             targetUsername);
-        writeThread.sendKeyExchangeMessage(initMsg);
-
-        // The key exchange will be handled by the ReadThread
+        writeThread.sendKeyExchangeMessage(initMsg); // The key exchange will be handled by the ReadThread
         // and will complete automatically
         return true;
 
       } catch (Exception e) {
         logger.severe("Key exchange failed: " + e.getMessage());
+        // Clean up on failure
+        String exchangeKey = currentUsername.compareTo(targetUsername) < 0
+            ? currentUsername + "-" + targetUsername
+            : targetUsername + "-" + currentUsername;
+        activeExchanges.remove(exchangeKey);
         return false;
       }
     });
@@ -47,7 +65,7 @@ public class AutoKeyExchange {
       switch (message.getType()) {
         case INITIATE_EXCHANGE:
           // Another user wants to chat - auto-accept and send public key
-          cryptoManager.generateAESKey(); // Generate session key for this exchange
+          // Don't generate AES key here - wait for the initiator to send it
 
           KeyExchangeMessage response = new KeyExchangeMessage(
               KeyExchangeMessage.Type.PUBLIC_KEY_OFFER,
@@ -77,7 +95,6 @@ public class AutoKeyExchange {
 
           chatClient.appendMessage("[System] Public key received, sending session key...");
           break;
-
         case SESSION_KEY_OFFER:
           // Received encrypted session key - decrypt and confirm
           boolean success = cryptoManager.setSessionKeyFromEncrypted(message.getPayload());
@@ -90,6 +107,18 @@ public class AutoKeyExchange {
           if (success) {
             confirmMsg.setPayload("Key exchange completed successfully");
             chatClient.appendMessage("[System] Session key received and decrypted successfully");
+
+            // Clean up the active exchange tracking for this client
+            String exchangeKey = chatClient.getUserName().compareTo(message.getSenderUsername()) < 0
+                ? chatClient.getUserName() + "-" + message.getSenderUsername()
+                : message.getSenderUsername() + "-" + chatClient.getUserName();
+            activeExchanges.remove(exchangeKey);
+
+            // Enable chat interface immediately for the receiver
+            SwingUtilities.invokeLater(() -> {
+              chatClient.enableChatInterface();
+            });
+            chatClient.appendMessage("[System] Key exchange completed! Chat is now secure.");
           } else {
             confirmMsg.setPayload("Failed to decrypt session key");
             chatClient.appendMessage("[System] ERROR: Failed to decrypt session key");
@@ -97,15 +126,30 @@ public class AutoKeyExchange {
 
           writeThread.sendKeyExchangeMessage(confirmMsg);
           break;
-
         case EXCHANGE_COMPLETE:
           logger.info("Key exchange completed with " + message.getSenderUsername());
           chatClient.appendMessage("[System] Key exchange completed! Chat is now secure.");
-          break;
 
+          // Clean up the active exchange tracking
+          String completedExchangeKey = chatClient.getUserName().compareTo(message.getSenderUsername()) < 0
+              ? chatClient.getUserName() + "-" + message.getSenderUsername()
+              : message.getSenderUsername() + "-" + chatClient.getUserName();
+          activeExchanges.remove(completedExchangeKey);
+
+          // Enable the chat interface now that key exchange is complete
+          SwingUtilities.invokeLater(() -> {
+            chatClient.enableChatInterface();
+          });
+          break;
         case EXCHANGE_ERROR:
           logger.severe("Key exchange error: " + message.getPayload());
           chatClient.appendMessage("[System] Key exchange error: " + message.getPayload());
+
+          // Clean up the active exchange tracking on error
+          String errorExchangeKey = chatClient.getUserName().compareTo(message.getSenderUsername()) < 0
+              ? chatClient.getUserName() + "-" + message.getSenderUsername()
+              : message.getSenderUsername() + "-" + chatClient.getUserName();
+          activeExchanges.remove(errorExchangeKey);
           break;
       }
     } catch (Exception e) {

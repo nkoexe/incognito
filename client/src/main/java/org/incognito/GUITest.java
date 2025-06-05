@@ -117,6 +117,52 @@ public class GUITest extends JFrame {
   }
 
   /**
+   * Initialize connection with a provided username and target user (used by
+   * automated flow)
+   */
+  public void initializeConnectionWithUsername(Connection connection, String username, String targetUser)
+      throws InterruptedException {
+    logger.info("Initializing connection with username: " + username + " targeting: " + targetUser);
+    this.connection = connection;
+    this.userName = username;
+
+    if (connection.getSocket() != null) {
+      // Create threads for the existing connection
+      BlockingQueue<String> loginResponseQueue = new ArrayBlockingQueue<>(1);
+      readThread = new ReadThread(connection.getSocket(), this, cryptoManager, loginResponseQueue);
+      writeThread = new WriteThread(connection.getSocket(), this, cryptoManager);
+
+      readThread.start();
+      writeThread.start();
+
+      // Register username with server
+      writeThread.sendMessage("USERLIST:" + username);
+
+      // Wait for server to accept username
+      try {
+        String response = loginResponseQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
+        if ("USERNAME_ACCEPTED".equals(response)) {
+          logger.info("Username " + username + " accepted by server");
+
+          // Start automatic key exchange with target user
+          appendMessage("[System] Initiating secure connection with " + targetUser + "...");
+          AutoKeyExchange.performKeyExchange(targetUser, username, cryptoManager, writeThread);
+
+        } else {
+          logger.severe("Server rejected username: " + response);
+          appendMessage("[ERROR] Server rejected username: " + response);
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw e;
+      }
+
+    } else {
+      throw new RuntimeException("Connection socket is null");
+    }
+  }
+
+  /**
    * Initialize connection with a provided username (used by automated flow)
    */
   public void initializeConnectionWithUsername(Connection connection, String username) throws InterruptedException {
@@ -141,9 +187,9 @@ public class GUITest extends JFrame {
       usersModel.clear();
       usersModel.addElement(this.userName + " (you)");
 
-      // Send username to server
-      logger.info("Sending username: " + username);
-      writeThread.sendMessage("USERLIST:" + this.userName);
+      // username is already sent
+      // logger.info("Sending username: " + username);
+      // writeThread.sendMessage("USERLIST:" + this.userName);
 
       // Generate session ID
       String sessionId = generateSessionId();
@@ -326,6 +372,22 @@ public class GUITest extends JFrame {
     }
   }
 
+  // Method to generate session ID based on usernames (for initial request)
+  @SuppressWarnings("unused")
+  private String generateSessionIdForUsers(String user1, String user2) {
+    try {
+      // Order the usernames to ensure consistency
+      String combinedUsers = user1.compareTo(user2) < 0 ? user1 + user2 : user2 + user1;
+
+      MessageDigest digest = MessageDigest.getInstance("SHA-256");
+      byte[] hash = digest.digest(combinedUsers.getBytes(StandardCharsets.UTF_8));
+      return "session_" + Base64.getEncoder().encodeToString(hash).substring(0, 16); // Shorter ID
+    } catch (Exception e) {
+      logger.severe("Error generating session ID for users: " + e.getMessage());
+      return "session-" + Math.abs((user1 + user2).hashCode()); // Fallback
+    }
+  }
+
   // PER I BRO!!!!!!!!!!
   // Questo metodo dovremmo tenerlo se aggiungiamo chat di gruppo. finchè non lo
   // facciamo
@@ -500,5 +562,17 @@ public class GUITest extends JFrame {
    */
   public WriteThread getWriteThread() {
     return writeThread;
+  }
+
+  /**
+   * Enable chat interface after successful key exchange
+   */
+  public void enableChatInterface() {
+    SwingUtilities.invokeLater(() -> {
+      isSessionActive = true;
+      messageField.setEnabled(true);
+      sendButton.setEnabled(true);
+      appendMessage("[System] Chat interface enabled - you can now send messages securely!");
+    });
   }
 }

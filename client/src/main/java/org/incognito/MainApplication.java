@@ -22,45 +22,33 @@ public class MainApplication {
           logger.info("Application startup cancelled by user.");
           System.exit(0);
           return;
-        }
-
-        // Create and show the UserSelectionPage for automated key exchange
+        } // Create and show the UserSelectionPage for automated key exchange
         UserSelectionPage.UserSelectionListener userSelectionListener = new UserSelectionPage.UserSelectionListener() {
           @Override
-          public void onAutomaticChatRequested(String targetUser, UserSelectionPage userSelectionPage) {
-            // Initialize connection first
-            Connection connection = new Connection();
-            boolean connected = false;
+          public void onAutomaticChatRequested(Connection connection, String targetUser,
+              UserSelectionPage userSelectionPage) {
             try {
-              connected = connection.connect();
+              // Show a waiting message
+              userSelectionPage.setStatus("Starting chat with " + targetUser + "...");
+
+              // Disconnect the user selection page cleanly to avoid stream conflicts
+              userSelectionPage.disconnect();
+
+              // Create a fresh connection for the chat
+              Connection chatConnection = new Connection();
+              boolean connected = chatConnection.connect();
               if (!connected) {
-                logger.severe("Impossible connecting to server.");
-                JOptionPane.showMessageDialog(userSelectionPage, "Impossible connecting to server.", "Connection error",
+                JOptionPane.showMessageDialog(userSelectionPage, "Failed to connect to server for chat",
+                    "Connection error",
                     JOptionPane.ERROR_MESSAGE);
                 return;
               }
-            } catch (Exception e) {
-              logger.severe("Failed to connect to server: " + e.getMessage());
-              JOptionPane.showMessageDialog(userSelectionPage, "Failed to connect to server: " + e.getMessage(),
-                  "Connection error", JOptionPane.ERROR_MESSAGE);
-              return;
-            }
 
-            // Create GUITest with the configured CryptoManager
-            chatClient = new GUITest(cryptoManager);
+              // Create GUITest with the configured CryptoManager
+              chatClient = new GUITest(cryptoManager);
 
-            try {
-              // Initialize connection with the provided username
-              chatClient.initializeConnectionWithUsername(connection, username);
-
-              // Wait for WriteThread to be available
-              WriteThread writeThread = chatClient.getWriteThread();
-              if (writeThread == null) {
-                throw new IllegalStateException("WriteThread not initialized");
-              }
-
-              // Start automated key exchange using static method
-              AutoKeyExchange.performKeyExchange(targetUser, username, cryptoManager, writeThread);
+              // Initialize connection with the provided username and target
+              chatClient.initializeConnectionWithUsername(chatConnection, username, targetUser);
 
               // Close the user selection page and show chat
               userSelectionPage.dispose();

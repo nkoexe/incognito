@@ -19,7 +19,7 @@ public class UserSelectionPage extends JFrame {
   private java.io.ObjectOutputStream serverOutput;
 
   public interface UserSelectionListener {
-    void onAutomaticChatRequested(String targetUser, UserSelectionPage userSelectionPage);
+    void onAutomaticChatRequested(Connection connection, String targetUser, UserSelectionPage userSelectionPage);
 
     void onManualKeyExchange(UserSelectionPage userSelectionPage);
 
@@ -135,7 +135,7 @@ public class UserSelectionPage extends JFrame {
     statusLabel.setText("Starting secure chat with " + selectedUser + "...");
 
     if (listener != null) {
-      listener.onAutomaticChatRequested(selectedUser, this);
+      listener.onAutomaticChatRequested(this.connection, selectedUser, this);
     }
   }
 
@@ -233,32 +233,72 @@ public class UserSelectionPage extends JFrame {
       serverOutput = new java.io.ObjectOutputStream(connection.getSocket().getOutputStream());
       java.io.ObjectInputStream in = new java.io.ObjectInputStream(connection.getSocket().getInputStream());
 
-      // Send username authentication
-      serverOutput.writeObject("USERLIST:" + currentUsername);
-      serverOutput.flush();
+      // Try authentication with username, retry if taken
+      boolean authenticated = false;
+      String usernameToTry = currentUsername;
 
-      // Wait for authentication response
-      Object response = in.readObject();
+      while (!authenticated) {
+        // Send username authentication
+        serverOutput.writeObject("USERLIST:" + usernameToTry);
+        serverOutput.flush();
 
-      if (response instanceof String str) {
-        if ("USERNAME_ACCEPTED".equals(str)) {
-          SwingUtilities.invokeLater(() -> {
-            statusLabel.setText("Connected - loading users...");
-          });
+        // Wait for authentication response
+        Object response = in.readObject();
 
-          // Start a background thread to listen for user list updates
-          startUserListListener(in);
+        if (response instanceof String str) {
+          if ("USERNAME_ACCEPTED".equals(str)) {
+            // Update the current username if it was changed
+            currentUsername = usernameToTry;
+            setTitle("Select Contact - " + currentUsername);
 
-        } else if ("USERNAME_TAKEN".equals(str)) {
-          SwingUtilities.invokeLater(() -> {
-            statusLabel.setText("Username taken - please try again later");
-          });
-          disconnect();
+            SwingUtilities.invokeLater(() -> {
+              statusLabel.setText("Connected - loading users...");
+            });
+
+            // Start a background thread to listen for user list updates
+            startUserListListener(in);
+            authenticated = true;
+
+          } else if ("USERNAME_TAKEN".equals(str)) {
+            // Prompt for new username on UI thread
+            final String currentAttempt = usernameToTry;
+            final String[] newUsername = { null };
+            SwingUtilities.invokeAndWait(() -> {
+              newUsername[0] = JOptionPane.showInputDialog(
+                  this,
+                  "Username '" + currentAttempt + "' is already taken.\nPlease enter a different username:",
+                  "Username Taken",
+                  JOptionPane.WARNING_MESSAGE);
+            });
+
+            if (newUsername[0] == null || newUsername[0].trim().isEmpty()) {
+              // User cancelled or entered empty username
+              SwingUtilities.invokeLater(() -> {
+                statusLabel.setText("Authentication cancelled");
+              });
+              disconnect();
+              return;
+            }
+
+            usernameToTry = newUsername[0].trim();
+            final String nextAttempt = usernameToTry;
+            SwingUtilities.invokeLater(() -> {
+              statusLabel.setText("Trying username: " + nextAttempt + "...");
+            });
+
+          } else {
+            SwingUtilities.invokeLater(() -> {
+              statusLabel.setText("Authentication failed: " + str);
+            });
+            disconnect();
+            return;
+          }
         } else {
           SwingUtilities.invokeLater(() -> {
-            statusLabel.setText("Authentication failed: " + str);
+            statusLabel.setText("Invalid server response");
           });
           disconnect();
+          return;
         }
       }
 
@@ -310,13 +350,16 @@ public class UserSelectionPage extends JFrame {
     });
   }
 
-  private void disconnect() {
+  public void disconnect() {
     try {
       if (connection != null) {
         connection.close();
       }
+      if (serverOutput != null) {
+        serverOutput.close();
+      }
     } catch (Exception e) {
-      logger.warning("Error during disconnect: " + e.getMessage());
+      logger.severe("Error during disconnect: " + e.getMessage());
     }
   }
 }
