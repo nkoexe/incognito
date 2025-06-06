@@ -495,16 +495,14 @@ public class GUITest extends JFrame {
             return;
         }
 
-        // Display in local chat area
-        // testing broadcast: message is echoed back to sender
-        // chatArea.append("You: " + message + "\n");
+        // Display message immediately in local chat area
+        chatArea.append("You: " + message + "\n");
 
         // Clear message field
         messageField.setText("");
 
         // The actual sending is handled by WriteThread
         logger.info("Sending message: " + message);
-        // writeThread.sendMessage(userName + ": " + message);
         writeThread.sendMessage(message);
     }
 
