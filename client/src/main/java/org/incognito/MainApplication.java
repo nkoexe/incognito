@@ -153,7 +153,7 @@ public class MainApplication {
                     // Show confirmation dialog
                     int option = JOptionPane.showConfirmDialog(
                         null,
-                        "Do you want to return to the main menu?",
+                        "Do you want to return to the username selection menu?",
                         "Return to Menu",
                         JOptionPane.YES_NO_OPTION,
                         JOptionPane.QUESTION_MESSAGE
