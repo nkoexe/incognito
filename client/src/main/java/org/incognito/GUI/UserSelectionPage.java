@@ -28,13 +28,20 @@ public class UserSelectionPage extends JFrame {
 
     public UserSelectionPage(String username, UserSelectionListener listener) {
         this.currentUsername = username;
-        this.listener = listener;
-
-        setTitle("Select Contact - " + username);
+        this.listener = listener;        setTitle("Select Contact - " + username);
         setSize(450, 400);
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
+        
+        addWindowListener(new java.awt.event.WindowAdapter() {
+            @Override
+            public void windowClosing(java.awt.event.WindowEvent e) {
+                if (listener != null) {
+                    listener.onCancel(UserSelectionPage.this);
+                }
+            }
+        });
 
         initComponents();
         connectToServerAndLoadUsers();
@@ -364,5 +371,9 @@ public class UserSelectionPage extends JFrame {
         } catch (Exception e) {
             logger.severe("Error during disconnect: " + e.getMessage());
         }
+    }
+
+    public UserSelectionListener getListener() {
+        return listener;
     }
 }

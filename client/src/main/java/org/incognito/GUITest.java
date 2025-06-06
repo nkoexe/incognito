@@ -3,6 +3,7 @@ package org.incognito;
 import org.incognito.crypto.CryptoManager;
 import org.incognito.crypto.QRUtil;
 import org.incognito.ChatSessionLogger;
+import org.incognito.GUI.UserSelectionPage;
 
 import javax.crypto.SecretKey;
 import javax.swing.*;
@@ -20,9 +21,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.logging.Logger;
 
 public class GUITest extends JFrame {
-
     // Set up logging
-    private Logger logger = Logger.getLogger(GUITest.class.getName());
+    private static final Logger logger = Logger.getLogger(GUITest.class.getName());
     private Connection connection;
 
     // UI components
@@ -38,8 +38,27 @@ public class GUITest extends JFrame {
     private CryptoManager cryptoManager;
     private volatile boolean isSessionActive = false; // Flag to indicate if a session is active
 
-    public GUITest(CryptoManager cryptoManager) {
+    /**
+     * Button to allow users to return to the main menu
+     * This is positioned at the top of the chat window and styled in red
+     * to be easily visible but not interfere with the chat area
+     */
+    private JButton exitChatButton;
+
+    /**
+     * Reference to the selection page listener to enable returning to main menu
+     */
+    private UserSelectionPage.UserSelectionListener userSelectionListener;
+
+    /**
+     * Stores the current username to maintain identity when returning to main menu
+     */
+    private String currentUsername;
+
+    public GUITest(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {
         this.cryptoManager = cryptoManager;
+        this.currentUsername = username;
+        this.userSelectionListener = listener;
         // Set up the UI components
 
         try {
@@ -51,12 +70,10 @@ public class GUITest extends JFrame {
             JOptionPane.showMessageDialog(this, "Fatal error: unable to generate session key.", "Cryptography error",
                     JOptionPane.ERROR_MESSAGE);
             System.exit(1); // O gestisci diversamente
-        }
-
-        setTitle("Incognito Chat");
+        }        setTitle("Incognito Chat");
         setSize(720, 480);
         setLocationRelativeTo(null); // Center the window
-        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // Handle close in windowClosing event
         setLayout(new BorderLayout());
 
         // Chat display area
@@ -83,18 +100,26 @@ public class GUITest extends JFrame {
             }
         });
         JScrollPane usersScrollPane = new JScrollPane(usersList);
-        usersScrollPane.setPreferredSize(new Dimension(100, 0));
-
-        // Message input area at bottom
+        usersScrollPane.setPreferredSize(new Dimension(100, 0));        // Message input area at bottom
         JPanel inputPanel = new JPanel(new BorderLayout());
         messageField = new JTextField();
         sendButton = new JButton("Send");
+        
+        // Add Exit Chat button in a panel at the top of the window
+        exitChatButton = new JButton("Exit Chat");
+        exitChatButton.setBackground(new Color(255, 102, 102)); // Light red background for visibility
+        exitChatButton.setForeground(Color.WHITE); // White text for contrast
+        // Place button in top-right corner in its own panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        buttonPanel.add(exitChatButton); // Right-aligned for consistency and visibility
+        
         inputPanel.add(messageField, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
 
         // Add components to frame
         add(chatScrollPane, BorderLayout.CENTER);
         add(usersScrollPane, BorderLayout.EAST);
+        add(buttonPanel, BorderLayout.NORTH);
         add(inputPanel, BorderLayout.SOUTH);
 
         // Disable message input and send button until connected
@@ -104,12 +129,13 @@ public class GUITest extends JFrame {
         // Event listeners
         sendButton.addActionListener(this::sendMessage);
         messageField.addActionListener(this::sendMessage);
+        exitChatButton.addActionListener(e -> returnToMainMenu());
 
         // Handle window closing to disconnect properly
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                disconnect();
+                returnToMainMenu();
             }
         });
 
@@ -444,33 +470,64 @@ public class GUITest extends JFrame {
         SwingUtilities.invokeLater(() -> {
             chatArea.append(message + "\n");
         });
-    }
-
-    private void disconnect() {
+    }    private void disconnect() {
         try {
+            // Log disconnection attempt
+            logger.info("Initiating disconnection for user: " + userName);
+            
+            // Interrupt and cleanup threads
             if (readThread != null) {
                 readThread.interrupt();
+                readThread = null;
             }
 
             if (writeThread != null) {
                 writeThread.interrupt();
+                writeThread = null;
             }
 
+            // Close connection
             if (connection != null) {
-                connection.close();
+                try {
+                    // Notify server about disconnection if possible
+                    if (connection.getSocket() != null && !connection.getSocket().isClosed()) {
+                        writeThread.sendMessage("DISCONNECT:" + userName);
+                    }
+                } catch (Exception ex) {
+                    logger.warning("Could not send disconnect message: " + ex.getMessage());
+                } finally {
+                    connection.close();
+                    connection = null;
+                }
             }
 
-            chatArea.append("Disconnected from server.\n");
-            logger.info("Disconnected from server.");
+            // Update UI state
+            SwingUtilities.invokeLater(() -> {
+                chatArea.append("[System] Disconnected from server.\n");
+                isSessionActive = false;
+                if (messageField != null) {
+                    messageField.setEnabled(false);
+                    messageField.setText("");
+                }
+                if (sendButton != null) {
+                    sendButton.setEnabled(false);
+                }
+                if (exitChatButton != null) {
+                    exitChatButton.setEnabled(true); // Always allow exiting
+                }
+                if (usersModel != null) {
+                    usersModel.clear();
+                }
+            });
+            
+            // Log successful disconnection
+            logger.info("Successfully disconnected from server");
+            ChatSessionLogger.logInfo("Chat session ended - disconnected from server");
+            
         } catch (Exception e) {
             logger.severe("Error during disconnection: " + e.getMessage());
             e.printStackTrace();
-        } finally {
-            isSessionActive = false;
-            if (messageField != null)
-                messageField.setEnabled(false);
-            if (sendButton != null)
-                sendButton.setEnabled(false);
+            ChatSessionLogger.logInfo("Error occurred during disconnection: " + e.getMessage());
         }
     }
 
@@ -537,9 +594,8 @@ public class GUITest extends JFrame {
             } else if (serverMessage.startsWith("PEER_DISCONNECTED")) {
                 this.isSessionActive = false;
                 messageField.setEnabled(false);
-                sendButton.setEnabled(false);
-                chatArea.append("[System] Peer disconnected.\n");
-                logger.info("Peer disconnected. Chat UI disabled.");
+                sendButton.setEnabled(false);                chatArea.append("[System] " + serverMessage.substring("PEER_DISCONNECTED:".length()) + " has disconnected from the session.\n");
+                logger.info("Peer " + serverMessage.substring("PEER_DISCONNECTED:".length()) + " disconnected. Chat UI disabled.");
                 if (usersModel.size() > 0) {
                     for (int i = 0; i < usersModel.getSize(); i++) {
                         if (usersModel.getElementAt(i).contains(" (contact)")) {
@@ -575,4 +631,45 @@ public class GUITest extends JFrame {
             appendMessage("[System] Chat interface enabled - you can now send messages securely!");
         });
     }
+
+    /**
+     * Returns the user to the main menu (user selection screen) after confirming.
+     * This method:
+     * 1. Shows a confirmation dialog
+     * 2. If confirmed, cleans up the chat resources
+     * 3. Disposes of the chat window
+     * 4. Creates and shows a new user selection page with the same username
+     */
+    private void returnToMainMenu() {
+        int option = JOptionPane.showConfirmDialog(
+            this,
+            "Are you sure you want to exit the chat?\nYou will return to the main menu.",
+            "Exit Chat",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.QUESTION_MESSAGE
+        );
+        
+        if (option == JOptionPane.YES_OPTION) {
+            // Log the action
+            logger.info("User " + currentUsername + " returning to main menu");
+            ChatSessionLogger.logInfo("Chat session ended by user returning to main menu");
+            
+            // Clean up chat resources
+            disconnect();
+            
+            // Store username before disposing
+            String preservedUsername = userName;
+            
+            // Clean up UI
+            dispose();
+            
+            // Create and show new selection page with preserved state
+            SwingUtilities.invokeLater(() -> {
+                UserSelectionPage newPage = new UserSelectionPage(preservedUsername, userSelectionListener);
+                newPage.setVisible(true);
+                logger.info("Created new user selection page with preserved username: " + preservedUsername);
+            });
+        }
+    }
+  
 }
