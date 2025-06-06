@@ -96,10 +96,14 @@ public class Connection {
         for (ClientHandler client : new ArrayList<>(usersClientMap.values())) {
             client.send(message);
         }
-    }
-
-    // add user to the list of connected users
+    }    // add user to the list of connected users
     public void registerUser(String username, ClientHandler clientHandler) {
+        // Store the username in its original case but check case-insensitively
+        if (isUsernameTaken(username)) {
+            clientHandler.send("USERNAME_TAKEN");
+            return;
+        }
+        
         usersClientMap.put(username, clientHandler);
         connectedUsers.add(username);
 
@@ -151,11 +155,10 @@ public class Connection {
     // Get client handler by username
     public ClientHandler getClientByUsername(String username) {
         return usersClientMap.get(username);
-    }
-
-    // Check if username is already taken
+    }    // Check if username is already taken (case-insensitive)
     public boolean isUsernameTaken(String username) {
-        return connectedUsers.contains(username);
+        return connectedUsers.stream()
+            .anyMatch(existingUser -> existingUser.equalsIgnoreCase(username));
     }
 
     // Methods for private chat session handling
