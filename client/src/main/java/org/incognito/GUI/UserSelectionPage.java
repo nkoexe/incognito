@@ -6,6 +6,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.logging.Logger;
+import java.io.IOException;
 
 public class UserSelectionPage extends JFrame {
     private static final Logger logger = Logger.getLogger(UserSelectionPage.class.getName());
@@ -197,42 +198,77 @@ public class UserSelectionPage extends JFrame {
 
     public String getCurrentUsername() {
         return currentUsername;
-    }
-
-    private void connectToServerAndLoadUsers() {
+    }    private void connectToServerAndLoadUsers() {
         // Initialize connection and load users from server
         SwingUtilities.invokeLater(() -> {
             statusLabel.setText("Connecting to server...");
         });
 
         // Connect to server in background thread to avoid blocking UI
-        new Thread(() -> {
+        Thread connectionThread = new Thread(() -> {
             try {
+                // 1. Handle initial connection errors
+                if (connection != null) {
+                    try {
+                        connection.close(); // Clean up any existing connection
+                    } catch (Exception e) {
+                        logger.warning("Error cleaning up existing connection: " + e.getMessage());
+                    }
+                }
+
                 connection = new Connection();
                 boolean connected = connection.connect();
 
+                // 2. Handle connection failure
                 if (!connected) {
                     SwingUtilities.invokeLater(() -> {
                         statusLabel.setText("Failed to connect to server");
                         logger.severe("Failed to connect to server");
+                        
+                        // Show error dialog to user
+                        JOptionPane.showMessageDialog(this,
+                            "Could not connect to server. Please check your network connection.",
+                            "Connection Failed",
+                            JOptionPane.ERROR_MESSAGE);
                     });
                     return;
                 }
 
+                // 3. Handle successful connection
                 SwingUtilities.invokeLater(() -> {
                     statusLabel.setText("Connected to server, authenticating...");
                 });
 
-                // Initialize read and write threads for server communication
-                initializeServerCommunication();
+                // 4. Initialize server communication with error handling
+                try {
+                    initializeServerCommunication();
+                } catch (Exception e) {
+                    throw new RuntimeException("Failed to initialize server communication", e);
+                }
 
             } catch (Exception e) {
+                // 5. Handle all other errors (including runtime errors)
                 logger.severe("Error connecting to server: " + e.getMessage());
                 SwingUtilities.invokeLater(() -> {
                     statusLabel.setText("Connection error: " + e.getMessage());
+                    
+                    // Clean up any partial connection state
+                    if (connection != null) {
+                        disconnect();
+                    }
+                    
+                    // Show detailed error to user
+                    JOptionPane.showMessageDialog(this,
+                        "Failed to establish connection: " + e.getMessage() +
+                        "\nPlease try again later.",
+                        "Connection Error",
+                        JOptionPane.ERROR_MESSAGE);
                 });
             }
-        }).start();
+        }, "ServerConnection");
+        
+        connectionThread.setDaemon(true); // Allow JVM to exit if thread is still running
+        connectionThread.start();
     }
 
     private void initializeServerCommunication() {
@@ -358,19 +394,73 @@ public class UserSelectionPage extends JFrame {
                 }
             }
         });
-    }
-
+    }    /**
+     * Disconnects from the server and cleans up resources in a specific order:
+     * 1. Notify server of disconnect (if possible)
+     * 2. Close output stream (first to prevent pipe broken errors)
+     * 3. Close input streams (if any are open)
+     * 4. Close socket connection
+     * 5. Clean up UI state
+     */
     public void disconnect() {
-        try {
-            if (connection != null) {
-                connection.close();
+        Thread cleanupThread = new Thread(() -> {
+            try {
+                // 1. Try to notify server about disconnection if connection is still alive
+                if (serverOutput != null && connection != null && 
+                    connection.getSocket() != null && !connection.getSocket().isClosed()) {
+                    try {
+                        serverOutput.writeObject("DISCONNECT:" + currentUsername);
+                        serverOutput.flush();
+                        logger.info("Sent disconnect notification to server");
+                    } catch (IOException e) {
+                        // Non-critical error - connection might already be down
+                        logger.warning("Could not send disconnect notification: " + e.getMessage());
+                    }
+                }
+
+                // 2. Close output stream first to prevent pipe broken errors
+                if (serverOutput != null) {
+                    try {
+                        serverOutput.close();
+                        serverOutput = null;
+                        logger.fine("Closed server output stream");
+                    } catch (IOException e) {
+                        logger.warning("Error closing output stream: " + e.getMessage());
+                    }
+                }
+
+                // 3. Close the connection (this will close the socket and input streams)
+                if (connection != null) {
+                    try {
+                        connection.close();
+                        connection = null;
+                        logger.fine("Closed connection");
+                    } catch (Exception e) {
+                        logger.severe("Error closing connection: " + e.getMessage());
+                    }
+                }
+
+                // 4. Update UI state in a thread-safe way
+                SwingUtilities.invokeLater(() -> {
+                    usersModel.clear();
+                    statusLabel.setText("Disconnected from server");
+                });
+
+            } catch (Exception e) {
+                // Catch any unexpected errors during cleanup
+                logger.severe("Unexpected error during disconnect: " + e.getMessage());
+                e.printStackTrace();
+            } finally {
+                // 5. Ensure UI reflects disconnected state
+                SwingUtilities.invokeLater(() -> {
+                    statusLabel.setText("Disconnected");
+                });
             }
-            if (serverOutput != null) {
-                serverOutput.close();
-            }
-        } catch (Exception e) {
-            logger.severe("Error during disconnect: " + e.getMessage());
-        }
+        }, "DisconnectCleanup");
+
+        // Start cleanup in background to not block UI
+        cleanupThread.setDaemon(true);
+        cleanupThread.start();
     }
 
     public UserSelectionListener getListener() {
