@@ -26,6 +26,7 @@ public class MainApplication {
             // Prompt for username
             String username = promptForUsername();
             if (username == null || username.trim().isEmpty()) {
+                LocalLogger.logInfo("User cancelled the application startup.");
                 logger.info("Application startup cancelled by user.");
                 System.exit(0);
                 return;
@@ -61,6 +62,7 @@ public class MainApplication {
 
                     } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
+                        LocalLogger.logSevere("Connection initialization interrupted: " + e.getMessage());
                         logger.severe("Connection initialization interrupted: " + e.getMessage());
                         JOptionPane.showMessageDialog(userSelectionPage, "Connection initialization failed",
                                 "Error",
@@ -68,6 +70,7 @@ public class MainApplication {
                         if (chatClient != null)
                             chatClient.dispose();
                     } catch (Exception e) {
+                        LocalLogger.logSevere("Error while initializing connection: " + e.getMessage());
                         logger.severe("Error while initializing connection: " + e.getMessage());
                         JOptionPane.showMessageDialog(userSelectionPage,
                                 "Error while initializing connection: " + e.getMessage(),
@@ -85,8 +88,8 @@ public class MainApplication {
                         public void onKeysExchangedAndProceed(CryptoManager readyCryptoManager,
                                 MenuPage menuPageInstance) {
                             if (readyCryptoManager.getOtherUserPublicKeyBase64() == null) {
-                                logger.severe(
-                                        "Key exchange incomplete: Other user's public key is missing in CryptoManager.");
+                                LocalLogger.logSevere("Key exchange incomplete: Other user's public key is missing in CryptoManager.");
+                                logger.severe("Key exchange incomplete: Other user's public key is missing in CryptoManager.");
                                 JOptionPane.showMessageDialog(
                                         menuPageInstance,
                                         "Incomplete key exchange: the contact's public key has not been loaded.\n" +
@@ -107,12 +110,14 @@ public class MainApplication {
                             boolean connected = false;
                             try {                                    connected = connection.connect();
                                 if (!connected) {
+                                    LocalLogger.logSevere("Impossible connecting to server.");
                                     logger.severe("Impossible connecting to server.");
                                     chatClient.dispose();
                                     handleConnectionError(userSelectionPage, "Impossible connecting to server.");
                                     return;
                                 }
                             } catch (Exception e) {
+                                LocalLogger.logSevere("Failed to connect to server: " + e.getMessage());
                                 logger.severe("Failed to connect to server: " + e.getMessage());                                chatClient.dispose();
                                 handleConnectionError(userSelectionPage, "Failed to connect to server: " + e.getMessage());
                                 return;
@@ -121,9 +126,11 @@ public class MainApplication {
                             try {
                                 chatClient.initializeConnection(connection);                                } catch (InterruptedException e) {
                                 Thread.currentThread().interrupt();
+                                LocalLogger.logSevere("Connection initialization interrupted: " + e.getMessage());
                                 logger.severe("Connection initialization interrupted: " + e.getMessage());
                                 chatClient.dispose();
                                 handleConnectionError(userSelectionPage, "Connection initialization failed");                                } catch (Exception e) {
+                                LocalLogger.logSevere("Error while initializing connection: " + e.getMessage());
                                 logger.severe("Error while initializing connection: " + e.getMessage());
                                 chatClient.dispose();
                                 handleConnectionError(userSelectionPage, "Error while initializing connection: " + e.getMessage());
@@ -157,6 +164,7 @@ public class MainApplication {
             UserSelectionPage userSelectionPage = new UserSelectionPage(username, userSelectionListener);
             userSelectionPage.setVisible(true);            } catch (Exception e) {
             e.printStackTrace();
+            LocalLogger.logSevere("Error during application startup: " + e.getMessage());
             logger.severe("Error during application startup: " + e.getMessage());
             int option = JOptionPane.showConfirmDialog(
                 null,
@@ -172,6 +180,7 @@ public class MainApplication {
                         UserSelectionPage newPage = new UserSelectionPage(newUsername, userSelectionListener);
                         newPage.setVisible(true);
                     } catch (Exception ex) {
+                        LocalLogger.logSevere("Failed to initialize CryptoManager on retry: " + ex.getMessage());
                         logger.severe("Failed to initialize CryptoManager on retry: " + ex.getMessage());
                         JOptionPane.showMessageDialog(
                             null,

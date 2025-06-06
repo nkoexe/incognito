@@ -29,6 +29,7 @@ public class WriteThread extends Thread {
         try {
             outputStream = new ObjectOutputStream(socket.getOutputStream());
         } catch (IOException e) {
+            LocalLogger.logSevere("Error initializing WriteThread: " + e.getMessage());
             logger.severe("Error getting output stream: " + e.getMessage());
             e.printStackTrace();
         }
@@ -41,6 +42,7 @@ public class WriteThread extends Thread {
                 String message = messageQueue.take();
 
                 if (outputStream == null) {
+                    LocalLogger.logSevere("Cannot send message - outputStream is null");
                     logger.severe("Cannot send message - outputStream is null");
                     continue;
                 }
@@ -53,6 +55,7 @@ public class WriteThread extends Thread {
                     outputStream.writeObject(message);
                 } else {
                     if (cryptoManager.getAesSessionKey() == null) {
+                        LocalLogger.logSevere("AES session key is null. Cannot encrypt message.");
                         logger.severe("AES session key is null. Cannot encrypt message.");
                         client.appendMessage("[SYSTEM] AES session key is null. Cannot encrypt message.");
                         continue;
@@ -71,6 +74,7 @@ public class WriteThread extends Thread {
                 outputStream.flush();
 
             } catch (Exception ex) {
+                LocalLogger.logSevere("Error sending message: " + ex.getMessage());
                 logger.severe("Error sending message: " + ex.getMessage());
                 client.appendMessage("[SYSTEM] Error sending message: " + ex.getMessage());
                 ex.printStackTrace();
@@ -84,6 +88,7 @@ public class WriteThread extends Thread {
             if (outputStream != null) {
                 outputStream.writeObject(message);
             } else {
+                LocalLogger.logSevere("Cannot send system message - outputStream is null");
                 logger.severe("Cannot send system message - outputStream is null");
             }
         } catch (IOException e) {
@@ -101,6 +106,7 @@ public class WriteThread extends Thread {
                 socket.close();
             }
         } catch (IOException e) {
+            LocalLogger.logSevere("Error closing write thread: " + e.getMessage());
             logger.severe("Error closing write thread: " + e.getMessage());
             e.printStackTrace();
         }
@@ -113,6 +119,7 @@ public class WriteThread extends Thread {
     public void sendKeyExchangeMessage(KeyExchangeMessage keyExchangeMessage) {
         try {
             if (outputStream == null) {
+                LocalLogger.logSevere("Cannot send key exchange message - outputStream is null");
                 logger.severe("Cannot send key exchange message - outputStream is null");
                 return;
             }
@@ -121,6 +128,7 @@ public class WriteThread extends Thread {
             outputStream.writeObject(keyExchangeMessage);
             outputStream.flush();
         } catch (Exception e) {
+            LocalLogger.logSevere("Error sending key exchange message: " + e.getMessage());
             logger.severe("Error sending key exchange message: " + e.getMessage());
             e.printStackTrace();
         }

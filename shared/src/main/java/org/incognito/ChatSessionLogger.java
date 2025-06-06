@@ -14,7 +14,11 @@ public class ChatSessionLogger {
             if (!logDir.exists()) {
                 logDir.mkdirs(); // Crea la cartella se non esiste
             }
-            FileHandler fileHandler = new FileHandler("Logs/chat_sessions.log", true);
+            java.io.File chatLogDir = new java.io.File("Logs/ChatLogs");
+            if (!chatLogDir.exists()) {
+                chatLogDir.mkdirs(); // Crea la sottocartella se non esiste
+            }
+            FileHandler fileHandler = new FileHandler("Logs/ChatLogs/chat_sessions.log", true);
             fileHandler.setFormatter(new SimpleFormatter());
             logger.addHandler(fileHandler);
             logger.setUseParentHandlers(false); // Disabilita il logging sulla console

@@ -39,11 +39,13 @@ public class ReadThread extends Thread {
         try {
             // Ensure socket is not closed before creating input stream
             if (socket.isClosed()) {
+                LocalLogger.logSevere("Socket is closed, cannot create input stream");
                 logger.severe("Socket is closed, cannot create input stream");
                 return;
             }
             inputStream = new ObjectInputStream(socket.getInputStream());
         } catch (IOException ex) {
+            LocalLogger.logSevere("Error getting input stream: " + ex.getMessage());
             logger.severe("Error getting input stream: " + ex.getMessage());
             ex.printStackTrace();
         }
@@ -97,6 +99,7 @@ public class ReadThread extends Thread {
                 Thread.currentThread().interrupt();
                 break;
             } catch (Exception e) {
+                LocalLogger.logSevere("Error handling incoming message: " + e.getMessage());
                 logger.severe("Error handling incoming message: " + e.getMessage());
             }
         }
@@ -107,6 +110,7 @@ public class ReadThread extends Thread {
         try {
             return inputStream.readObject();
         } catch (IOException | ClassNotFoundException e) {
+            LocalLogger.logSevere("Error reading from server: " + e.getMessage());
             logger.severe("Error reading from server: " + e.getMessage());
             e.printStackTrace();
             return null;
@@ -141,6 +145,9 @@ public class ReadThread extends Thread {
                 String peerUsername = parts[1];
                 String sessionId = parts[2];
 
+                // Log the peer connection
+                LocalLogger.logInfo("Peer connected: " + peerUsername + " with session: " + sessionId);
+                // Log for the chat session
                 ChatSessionLogger.logInfo("Peer connected: " + peerUsername + " with session: " + sessionId);
                 client.handlePeerConnected(peerUsername, sessionId);
 
@@ -166,6 +173,7 @@ public class ReadThread extends Thread {
             if (socket != null)
                 socket.close();
         } catch (IOException e) {
+            LocalLogger.logSevere("Error closing read thread: " + e.getMessage());
             logger.severe("Error closing read thread: " + e.getMessage());
             e.printStackTrace();
         }

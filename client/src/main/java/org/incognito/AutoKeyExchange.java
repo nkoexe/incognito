@@ -28,10 +28,12 @@ public class AutoKeyExchange {
 
                 // Check if exchange is already in progress
                 if (!activeExchanges.add(exchangeKey)) {
+                    LocalLogger.logInfo("Key exchange already in progress with " + targetUsername);
                     logger.info("Key exchange already in progress with " + targetUsername);
                     return true; // Already in progress, consider it successful
                 }
 
+                LocalLogger.logInfo("Starting automatic key exchange with " + targetUsername);
                 logger.info("Starting automatic key exchange with " + targetUsername);
 
                 // Step 1: Send initiation request
@@ -44,6 +46,8 @@ public class AutoKeyExchange {
                 return true;
 
             } catch (Exception e) {
+                // Log the error and clean up
+                LocalLogger.logSevere("Key exchange failed: " + e.getMessage());
                 logger.severe("Key exchange failed: " + e.getMessage());
                 // Clean up on failure
                 String exchangeKey = currentUsername.compareTo(targetUsername) < 0
@@ -60,6 +64,7 @@ public class AutoKeyExchange {
             WriteThread writeThread,
             GUITest chatClient) {
         try {
+            LocalLogger.logInfo("Handling key exchange message: " + message);
             logger.info("Handling key exchange message: " + message);
 
             switch (message.getType()) {
@@ -128,6 +133,7 @@ public class AutoKeyExchange {
                     writeThread.sendKeyExchangeMessage(confirmMsg);
                     break;
                 case EXCHANGE_COMPLETE:
+                    LocalLogger.logInfo("Key exchange completed with " + message.getSenderUsername());
                     logger.info("Key exchange completed with " + message.getSenderUsername());
                     chatClient.appendMessage("[System] Key exchange completed! Chat is now secure.");
 
@@ -143,6 +149,7 @@ public class AutoKeyExchange {
                     });
                     break;
                 case EXCHANGE_ERROR:
+                    LocalLogger.logSevere("Key exchange error: " + message.getPayload());
                     logger.severe("Key exchange error: " + message.getPayload());
                     chatClient.appendMessage("[System] Key exchange error: " + message.getPayload());
 
@@ -154,6 +161,7 @@ public class AutoKeyExchange {
                     break;
             }
         } catch (Exception e) {
+            LocalLogger.logSevere("Error handling key exchange message: " + e.getMessage());
             logger.severe("Error handling key exchange message: " + e.getMessage());
             e.printStackTrace();
             chatClient.appendMessage("[System] Error during key exchange: " + e.getMessage());
