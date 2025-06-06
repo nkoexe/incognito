@@ -149,28 +149,8 @@ public class MainApplication {
                         userSelectionPage.disconnect(); // Cleanup connection
                         userSelectionPage.dispose();
                     }
-                    
-                    // Show confirmation dialog
-                    int option = JOptionPane.showConfirmDialog(
-                        null,
-                        "Do you want to return to the username selection menu?",
-                        "Return to Menu",
-                        JOptionPane.YES_NO_OPTION,
-                        JOptionPane.QUESTION_MESSAGE
-                    );
-                    
-                    if (option == JOptionPane.YES_OPTION) {
-                        // Re-prompt for username and create new selection page
-                        String newUsername = promptForUsername();
-                        if (newUsername != null && !newUsername.trim().isEmpty()) {
-                            UserSelectionPage newPage = new UserSelectionPage(newUsername, this);
-                            newPage.setVisible(true);
-                        } else {
-                            System.exit(0);
-                        }
-                    } else {
-                        System.exit(0);
-                    }
+
+                    System.exit(0); // Exit the application
                 }
             };
 
