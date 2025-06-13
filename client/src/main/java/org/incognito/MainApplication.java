@@ -2,6 +2,7 @@ package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
 import org.incognito.GUI.*;
+import org.incognito.GUI.theme.ModernTheme;
 
 import javax.swing.*;
 import java.util.logging.Logger;
@@ -10,10 +11,10 @@ public class MainApplication {
     private static GUITest chatClient;
     private static Logger logger = Logger.getLogger(MainApplication.class.getName());
     private static UserSelectionPage.UserSelectionListener userSelectionListener;
-    private static CryptoManager cryptoManager;
-
-    public static void main(String[] args) {
+    private static CryptoManager cryptoManager;    public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
+            // Initialize modern theme first
+            ModernTheme.initialize();
             initializeApplication();
         });
     }

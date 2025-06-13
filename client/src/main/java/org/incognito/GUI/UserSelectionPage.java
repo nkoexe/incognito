@@ -1,6 +1,7 @@
 package org.incognito.GUI;
 
 import org.incognito.Connection;
+import org.incognito.GUI.theme.ModernTheme;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
@@ -25,15 +26,18 @@ public class UserSelectionPage extends JFrame {
         void onManualKeyExchange(UserSelectionPage userSelectionPage);
 
         void onCancel(UserSelectionPage userSelectionPage);
-    }
-
-    public UserSelectionPage(String username, UserSelectionListener listener) {
+    }    public UserSelectionPage(String username, UserSelectionListener listener) {
         this.currentUsername = username;
-        this.listener = listener;        setTitle("Select Contact - " + username);
-        setSize(450, 400);
+        this.listener = listener;
+        
+        setTitle("Select Contact - " + username);
+        setSize(500, 450);
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
-        setLayout(new BorderLayout());
+        setLayout(new BorderLayout(ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
+        
+        // Set modern background
+        getContentPane().setBackground(ModernTheme.BACKGROUND_PRIMARY);
         
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
@@ -46,31 +50,54 @@ public class UserSelectionPage extends JFrame {
 
         initComponents();
         connectToServerAndLoadUsers();
-    }
-
-    private void initComponents() {
+    }    private void initComponents() {
         // Header
-        JLabel headerLabel = new JLabel(
-                "<html><center>Select a contact to start chatting:<br/></center></html>");
+        JLabel headerLabel = ModernTheme.createLabel(
+                "<html><center><b>Select a contact to start chatting</b><br/><span style='color: #8E8E93;'>Choose someone to begin a secure conversation</span></center></html>", 
+                ModernTheme.LabelType.TITLE);
         headerLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        headerLabel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        headerLabel.setBorder(BorderFactory.createEmptyBorder(
+                ModernTheme.SPACING_LARGE, ModernTheme.SPACING_MEDIUM, 
+                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
 
         // Users list
         usersModel = new DefaultListModel<>();
         usersList = new JList<>(usersModel);
         usersList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        usersList.setBackground(ModernTheme.BACKGROUND_SECONDARY);
+        usersList.setForeground(ModernTheme.TEXT_PRIMARY);
+        usersList.setFont(ModernTheme.FONT_MEDIUM);
+        usersList.setBorder(BorderFactory.createEmptyBorder(
+                ModernTheme.SPACING_SMALL, ModernTheme.SPACING_MEDIUM,
+                ModernTheme.SPACING_SMALL, ModernTheme.SPACING_MEDIUM));
+        
         usersList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index,
                     boolean isSelected, boolean cellHasFocus) {
                 Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                
+                // Apply modern styling
+                setFont(ModernTheme.FONT_MEDIUM);
+                setBorder(BorderFactory.createEmptyBorder(
+                        ModernTheme.SPACING_SMALL, ModernTheme.SPACING_MEDIUM,
+                        ModernTheme.SPACING_SMALL, ModernTheme.SPACING_MEDIUM));
+                
                 if (value.toString().equals(currentUsername)) {
                     setText(value + " (you)");
                     setFont(getFont().deriveFont(Font.ITALIC));
                     setEnabled(false);
+                    setForeground(ModernTheme.TEXT_TERTIARY);
                 } else {
                     setText(value.toString());
                     setEnabled(true);
+                    if (isSelected) {
+                        setBackground(ModernTheme.ACCENT_BLUE);
+                        setForeground(Color.WHITE);
+                    } else {
+                        setBackground(ModernTheme.BACKGROUND_SECONDARY);
+                        setForeground(ModernTheme.TEXT_PRIMARY);
+                    }
                 }
                 return c;
             }
@@ -86,19 +113,26 @@ public class UserSelectionPage extends JFrame {
         });
 
         JScrollPane scrollPane = new JScrollPane(usersList);
-        scrollPane.setBorder(BorderFactory.createTitledBorder("Available Users"));
-        scrollPane.setPreferredSize(new Dimension(400, 200));
+        scrollPane.setBorder(ModernTheme.createRoundedBorder(ModernTheme.BORDER_COLOR, 1));
+        scrollPane.setBackground(ModernTheme.BACKGROUND_SECONDARY);
+        scrollPane.getViewport().setBackground(ModernTheme.BACKGROUND_SECONDARY);
+        scrollPane.setPreferredSize(new Dimension(450, 200));
 
-        // Status and buttons
-        statusLabel = new JLabel("Loading users...");
+        // Status label
+        statusLabel = ModernTheme.createLabel("Loading users...", ModernTheme.LabelType.CAPTION);
         statusLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        statusLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+        statusLabel.setBorder(BorderFactory.createEmptyBorder(
+                ModernTheme.SPACING_SMALL, ModernTheme.SPACING_SMALL, 
+                ModernTheme.SPACING_SMALL, ModernTheme.SPACING_SMALL));
 
-        JPanel buttonPanel = new JPanel(new FlowLayout());
-        JButton selectButton = new JButton("Start Chatting");
-        JButton refreshButton = new JButton("Refresh");
-        JButton manualButton = new JButton("Manual Key Exchange");
-        JButton cancelButton = new JButton("Exit");
+        // Buttons panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, ModernTheme.SPACING_MEDIUM, 0));
+        buttonPanel.setBackground(ModernTheme.BACKGROUND_PRIMARY);
+        
+        JButton selectButton = ModernTheme.createButton("Start Chatting", ModernTheme.ButtonType.PRIMARY);
+        JButton refreshButton = ModernTheme.createButton("Refresh", ModernTheme.ButtonType.SECONDARY);
+        JButton manualButton = ModernTheme.createButton("Manual Key Exchange", ModernTheme.ButtonType.SECONDARY);
+        JButton cancelButton = ModernTheme.createButton("Exit", ModernTheme.ButtonType.DANGER);
 
         selectButton.addActionListener(e -> selectUser());
         refreshButton.addActionListener(e -> requestUserListUpdate());
@@ -118,12 +152,22 @@ public class UserSelectionPage extends JFrame {
         buttonPanel.add(manualButton);
         buttonPanel.add(cancelButton);
 
+        // Main content panel
+        JPanel contentPanel = ModernTheme.createPanel();
+        contentPanel.setLayout(new BorderLayout(ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(
+                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM,
+                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
+        contentPanel.add(scrollPane, BorderLayout.CENTER);
+
+        // South panel for status and buttons
         JPanel southPanel = new JPanel(new BorderLayout());
+        southPanel.setBackground(ModernTheme.BACKGROUND_PRIMARY);
         southPanel.add(statusLabel, BorderLayout.NORTH);
         southPanel.add(buttonPanel, BorderLayout.SOUTH);
 
         add(headerLabel, BorderLayout.NORTH);
-        add(scrollPane, BorderLayout.CENTER);
+        add(contentPanel, BorderLayout.CENTER);
         add(southPanel, BorderLayout.SOUTH);
     }
 

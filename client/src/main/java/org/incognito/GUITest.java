@@ -4,6 +4,7 @@ import org.incognito.crypto.CryptoManager;
 import org.incognito.crypto.QRUtil;
 import org.incognito.ChatSessionLogger;
 import org.incognito.GUI.UserSelectionPage;
+import org.incognito.GUI.theme.ModernTheme;
 
 import javax.crypto.SecretKey;
 import javax.swing.*;
@@ -55,8 +56,7 @@ public class GUITest extends JFrame {
      */
     private String currentUsername;
 
-    public GUITest(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {
-        this.cryptoManager = cryptoManager;
+    public GUITest(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {        this.cryptoManager = cryptoManager;
         this.currentUsername = username;
         this.userSelectionListener = listener;
         // Set up the UI components
@@ -69,57 +69,107 @@ public class GUITest extends JFrame {
             logger.severe("Error while generating AES session key: " + e.getMessage());
             JOptionPane.showMessageDialog(this, "Fatal error: unable to generate session key.", "Cryptography error",
                     JOptionPane.ERROR_MESSAGE);
-            System.exit(1); // O gestisci diversamente
-        }        setTitle("Incognito Chat");
-        setSize(720, 480);
+            System.exit(1);
+        }
+
+        setTitle("Incognito Chat");
+        setSize(800, 550);
         setLocationRelativeTo(null); // Center the window
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // Handle close in windowClosing event
-        setLayout(new BorderLayout());
+        setLayout(new BorderLayout(ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
+        
+        // Set modern background
+        getContentPane().setBackground(ModernTheme.BACKGROUND_PRIMARY);
 
         // Chat display area
-        chatArea = new JTextArea();
+        chatArea = ModernTheme.createTextArea();
         chatArea.setEditable(false);
         chatArea.setLineWrap(true);
+        chatArea.setWrapStyleWord(true);
+        chatArea.setBackground(ModernTheme.BACKGROUND_SECONDARY);
+        chatArea.setForeground(ModernTheme.TEXT_PRIMARY);
+        
         JScrollPane chatScrollPane = new JScrollPane(chatArea);
+        chatScrollPane.setBorder(ModernTheme.createRoundedBorder(ModernTheme.BORDER_COLOR, 1));
+        chatScrollPane.getViewport().setBackground(ModernTheme.BACKGROUND_SECONDARY);
 
         // Users list on the right
         usersModel = new DefaultListModel<>();
         // usersModel.addElement("You");
         usersList = new JList<>(usersModel);
+        usersList.setBackground(ModernTheme.BACKGROUND_SECONDARY);
+        usersList.setForeground(ModernTheme.TEXT_PRIMARY);
+        usersList.setFont(ModernTheme.FONT_MEDIUM);
+        
         usersList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index,
                     boolean isSelected, boolean cellHasFocus) {
                 Component renderer = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                setFont(ModernTheme.FONT_MEDIUM);
+                setBorder(BorderFactory.createEmptyBorder(
+                        ModernTheme.SPACING_SMALL, ModernTheme.SPACING_MEDIUM,
+                        ModernTheme.SPACING_SMALL, ModernTheme.SPACING_MEDIUM));
+                
                 if (value.toString().contains(" (you)")) {
                     renderer.setFont(renderer.getFont().deriveFont(Font.BOLD));
+                    setForeground(ModernTheme.TEXT_PRIMARY);
                 } else if (value.toString().contains(" (contact)")) {
-                    renderer.setForeground(new Color(0, 102, 204)); // Blu for contact
+                    setForeground(ModernTheme.ACCENT_BLUE);
                 }
+                
+                if (isSelected) {
+                    setBackground(ModernTheme.ACCENT_BLUE);
+                    setForeground(Color.WHITE);
+                } else {
+                    setBackground(ModernTheme.BACKGROUND_SECONDARY);
+                }
+                
                 return renderer;
             }
         });
+        
         JScrollPane usersScrollPane = new JScrollPane(usersList);
-        usersScrollPane.setPreferredSize(new Dimension(100, 0));        // Message input area at bottom
-        JPanel inputPanel = new JPanel(new BorderLayout());
-        messageField = new JTextField();
-        sendButton = new JButton("Send");
+        usersScrollPane.setBorder(ModernTheme.createRoundedBorder(ModernTheme.BORDER_COLOR, 1));
+        usersScrollPane.getViewport().setBackground(ModernTheme.BACKGROUND_SECONDARY);
+        usersScrollPane.setPreferredSize(new Dimension(150, 0));
+
+        // Message input area at bottom
+        JPanel inputPanel = new JPanel(new BorderLayout(ModernTheme.SPACING_SMALL, 0));
+        inputPanel.setBackground(ModernTheme.BACKGROUND_PRIMARY);
+        inputPanel.setBorder(BorderFactory.createEmptyBorder(
+                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM,
+                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
+        
+        messageField = ModernTheme.createTextField();
+        messageField.setFont(ModernTheme.FONT_MEDIUM);
+        
+        sendButton = ModernTheme.createButton("Send", ModernTheme.ButtonType.PRIMARY);
         
         // Add Exit Chat button in a panel at the top of the window
-        exitChatButton = new JButton("Exit Chat");
-        exitChatButton.setBackground(new Color(255, 102, 102)); // Light red background for visibility
-        exitChatButton.setForeground(Color.WHITE); // White text for contrast
-        // Place button in top-right corner in its own panel
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanel.add(exitChatButton); // Right-aligned for consistency and visibility
+        exitChatButton = ModernTheme.createButton("← Exit Chat", ModernTheme.ButtonType.DANGER);
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        buttonPanel.setBackground(ModernTheme.BACKGROUND_PRIMARY);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(
+                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM,
+                0, ModernTheme.SPACING_MEDIUM));
+        buttonPanel.add(exitChatButton);
         
         inputPanel.add(messageField, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
+        
+        // Main chat panel
+        JPanel chatPanel = ModernTheme.createPanel();
+        chatPanel.setLayout(new BorderLayout(ModernTheme.SPACING_MEDIUM, 0));
+        chatPanel.setBorder(BorderFactory.createEmptyBorder(
+                0, ModernTheme.SPACING_MEDIUM,
+                0, ModernTheme.SPACING_MEDIUM));
+        chatPanel.add(chatScrollPane, BorderLayout.CENTER);
 
         // Add components to frame
-        add(chatScrollPane, BorderLayout.CENTER);
-        add(usersScrollPane, BorderLayout.EAST);
         add(buttonPanel, BorderLayout.NORTH);
+        add(chatPanel, BorderLayout.CENTER);
+        add(usersScrollPane, BorderLayout.EAST);
         add(inputPanel, BorderLayout.SOUTH);
 
         // Disable message input and send button until connected
