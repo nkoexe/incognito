@@ -1,8 +1,6 @@
 package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
-import org.incognito.crypto.QRUtil;
-import org.incognito.ChatSessionLogger;
 import org.incognito.GUI.UserSelectionPage;
 import org.incognito.GUI.theme.ModernTheme;
 
@@ -12,8 +10,6 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.image.BufferedImage;
-import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
@@ -56,18 +52,23 @@ public class GUITest extends JFrame {
      */
     private String currentUsername;
 
-    public GUITest(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {        this.cryptoManager = cryptoManager;
-        this.currentUsername = username;
+    public GUITest(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {        this.cryptoManager = cryptoManager;        this.currentUsername = username;
         this.userSelectionListener = listener;
         // Set up the UI components
 
+        // Check if the CryptoManager already has an AES session key (from manual key exchange)
         try {
-            SecretKey sessionKey = this.cryptoManager.generateAESKey();
-            this.cryptoManager.setAesSessionKey(sessionKey);
-            logger.info("AES session key generated and set.");
+            if (this.cryptoManager.getAesSessionKey() == null) {
+                // No session key exists, generate one (this should only happen for automatic key exchange)
+                SecretKey sessionKey = this.cryptoManager.generateAESKey();
+                this.cryptoManager.setAesSessionKey(sessionKey);
+                logger.info("AES session key generated and set for automatic key exchange.");
+            } else {
+                logger.info("Using existing AES session key from manual key exchange.");
+            }
         } catch (Exception e) {
-            logger.severe("Error while generating AES session key: " + e.getMessage());
-            JOptionPane.showMessageDialog(this, "Fatal error: unable to generate session key.", "Cryptography error",
+            logger.severe("Error while handling AES session key: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "Fatal error: unable to handle session key.", "Cryptography error",
                     JOptionPane.ERROR_MESSAGE);
             System.exit(1);
         }
@@ -236,10 +237,8 @@ public class GUITest extends JFrame {
         } else {
             throw new RuntimeException("Connection socket is null");
         }
-    }
-
-    /**
-     * Initialize connection with a provided username (used by automated flow)
+    }    /**
+     * Initialize connection with a provided username (used by manual key exchange flow)
      */
     public void initializeConnectionWithUsername(Connection connection, String username) throws InterruptedException {
         logger.info("Initializing connection with username: " + username);
@@ -263,67 +262,83 @@ public class GUITest extends JFrame {
             usersModel.clear();
             usersModel.addElement(this.userName + " (you)");
 
-            // username is already sent
-            // logger.info("Sending username: " + username);
-            // writeThread.sendMessage("USERLIST:" + this.userName);
-
-            // Generate session ID
-            String sessionId = generateSessionId();
-
-            if (sessionId != null) {
-                writeThread.sendMessage("PRIVATE_CHAT:" + username + ":" + sessionId);
-                logger.info("Sending message PRIVATE_CHAT with sessionId: " + sessionId);
-            } else {
-                logger.warning("Session ID is null.");
-                JOptionPane.showMessageDialog(this, "Session ID cannot be null.", "Error", JOptionPane.ERROR_MESSAGE);
-                logger.warning("Couldn't send session ID to server.");
-                disconnect();
-                return;
-            }
+            // Register username first for manual key exchange flow
+            logger.info("Sending username for registration: " + username);
+            writeThread.sendMessage("USERLIST:" + this.userName);
 
             try {
                 Object response = loginQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
 
                 if (response instanceof String str) {
-                    switch (str) {
-                        case "USERNAME_ACCEPTED":
+                    switch (str) {                        case "USERNAME_ACCEPTED":
                             chatArea.append("Username '" + userName + "' accepted.\n");
+                            chatArea.append("Ready for secure communication using pre-exchanged keys.\n");
+                            
+                            // For manual key exchange, enable chat interface immediately since keys are already exchanged
+                            // No need to create a private chat session - server will handle manual key exchange messages
+                            isSessionActive = true;
+                            messageField.setEnabled(true);
+                            sendButton.setEnabled(true);
+                            
                             break;
                         case "USERNAME_TAKEN":
                             JOptionPane.showMessageDialog(this,
                                     "Username already in use. Please try a different username.");
                             throw new RuntimeException("Username already taken");
-                        case "WAITING_FOR_PEER":
-                            chatArea.append("Waiting for contact to connect...\n");
-                            isSessionActive = false;
-                            messageField.setEnabled(false);
-                            sendButton.setEnabled(false);
-                            break;
-                        case "PEER_CONNECTED":
-                            chatArea.append("Contact connected! You can now start chatting.\n");
-                            break;
                         default:
-                            logger.warning("Unknown server response: " + str);
-                            JOptionPane.showMessageDialog(this, "Unknown server response. Retry.");
-                            disconnect();
+                            logger.warning("Unexpected response: " + str);
                             break;
                     }
                 } else if (response == null) {
-                    chatArea.append("Server response is null.\n");
+                    chatArea.append("Server response timeout.\n");
                     logger.warning("Timeout waiting for server response.");
                     disconnect();
                 }
             } catch (InterruptedException e) {
-                logger.severe("Error while waiting for server response: " + e.getMessage());
-                chatArea.append("Error while waiting for server response: " + e.getMessage() + "\n");
                 Thread.currentThread().interrupt();
-                disconnect();
                 throw e;
             }
 
         } else {
-            chatArea.append("Failed to connect to server.\n");
-            throw new RuntimeException("Failed to connect to server");
+            throw new RuntimeException("Connection socket is null");
+        }
+    }
+
+    /**
+     * Initialize connection with a provided username for reused connections (used by manual key exchange flow)
+     */
+    public void initializeConnectionWithUsernameReused(Connection connection, String username) throws InterruptedException {
+        logger.info("Initializing connection with username (reused connection): " + username);
+        this.connection = connection;
+        this.userName = username;
+
+        if (connection.getSocket() != null) {
+            chatArea.append("Connected to server.\n");
+
+            // Start read and write threads for the reused connection
+            writeThread = new WriteThread(connection.getSocket(), this, this.cryptoManager);
+            readThread = new ReadThread(connection.getSocket(), this, this.cryptoManager);
+
+            writeThread.start();
+            readThread.start();
+
+            // Update UI with current user's name
+            setTitle("Incognito Chat - " + this.userName);
+            usersModel.clear();
+            usersModel.addElement(this.userName + " (you)");
+
+            // For reused connections in manual key exchange, username is already registered
+            // Skip username registration and directly enable chat interface
+            chatArea.append("Username '" + userName + "' already registered.\n");
+            chatArea.append("Ready for secure communication using pre-exchanged keys.\n");
+            
+            // For manual key exchange, enable chat interface immediately since keys are already exchanged
+            isSessionActive = true;
+            messageField.setEnabled(true);
+            sendButton.setEnabled(true);
+
+        } else {
+            throw new RuntimeException("Connection socket is null");
         }
     }
 

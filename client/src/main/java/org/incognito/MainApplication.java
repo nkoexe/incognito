@@ -84,8 +84,7 @@ public class MainApplication {
                 @Override
                 public void onManualKeyExchange(UserSelectionPage userSelectionPage) {
                     // Open the original MenuPage for manual key exchange
-                    MenuPage.MenuListener menuListener = new MenuPage.MenuListener() {
-                        @Override
+                    MenuPage.MenuListener menuListener = new MenuPage.MenuListener() {                        @Override
                         public void onKeysExchangedAndProceed(CryptoManager readyCryptoManager,
                                 MenuPage menuPageInstance) {
                             if (readyCryptoManager.getOtherUserPublicKeyBase64() == null) {
@@ -98,53 +97,87 @@ public class MainApplication {
                                         "Key Exchange Error",
                                         JOptionPane.ERROR_MESSAGE);
                                 return;
-                            }
-
+                            }                            // Store the current username and connection before disposing menu page
+                            String currentUsername = userSelectionPage.getCurrentUsername();
+                            Connection existingConnection = userSelectionPage.getConnection();
+                            
                             if (menuPageInstance != null) {
                                 menuPageInstance.dispose();
-                            }                            // Create GUITest with the configured CryptoManager and user info
-                            chatClient = new GUITest(readyCryptoManager, userSelectionPage.getCurrentUsername(), userSelectionListener);
+                            }
+                            
+                            // Create GUITest with the configured CryptoManager and user info
+                            chatClient = new GUITest(readyCryptoManager, currentUsername, userSelectionListener);
                             chatClient.setVisible(true);
 
-                            // Initialize the connection
-                            Connection connection = new Connection();
-                            boolean connected = false;
-                            try {                                    connected = connection.connect();
-                                if (!connected) {
-                                    LocalLogger.logSevere("Impossible connecting to server.");
-                                    logger.severe("Impossible connecting to server.");
+                            // Reuse the existing connection from UserSelectionPage to avoid disconnect/reconnect
+                            Connection connection = existingConnection;
+                            boolean connected = (connection != null && connection.getSocket() != null && !connection.getSocket().isClosed());
+                            
+                            if (!connected) {
+                                // Only create new connection if existing one is invalid
+                                logger.info("Existing connection invalid, creating new connection");
+                                connection = new Connection();
+                                try {
+                                    connected = connection.connect();
+                                    if (!connected) {
+                                        LocalLogger.logSevere("Impossible connecting to server.");
+                                        logger.severe("Impossible connecting to server.");
+                                        chatClient.dispose();
+                                        handleConnectionError(null, "Impossible connecting to server.");
+                                        return;
+                                    }
+                                } catch (Exception e) {
+                                    LocalLogger.logSevere("Failed to connect to server: " + e.getMessage());
+                                    logger.severe("Failed to connect to server: " + e.getMessage());
                                     chatClient.dispose();
-                                    handleConnectionError(userSelectionPage, "Impossible connecting to server.");
+                                    handleConnectionError(null, "Failed to connect to server: " + e.getMessage());
                                     return;
                                 }
-                            } catch (Exception e) {
-                                LocalLogger.logSevere("Failed to connect to server: " + e.getMessage());
-                                logger.severe("Failed to connect to server: " + e.getMessage());                                chatClient.dispose();
-                                handleConnectionError(userSelectionPage, "Failed to connect to server: " + e.getMessage());
-                                return;
+                            } else {
+                                logger.info("Reusing existing connection from UserSelectionPage for manual key exchange");
                             }
-
-                            try {
-                                chatClient.initializeConnection(connection);                                } catch (InterruptedException e) {
+                            
+                            // Now we can safely dispose the user selection page since we've reused its connection
+                            userSelectionPage.disconnectWithoutClosingConnection();
+                            userSelectionPage.dispose();                            try {
+                                if (connected && existingConnection != null) {
+                                    // Use the version for reused connections to avoid re-registering username
+                                    chatClient.initializeConnectionWithUsernameReused(connection, currentUsername);
+                                } else {
+                                    // Use the version with username registration for new connections
+                                    chatClient.initializeConnectionWithUsername(connection, currentUsername);
+                                }
+                            } catch (InterruptedException e) {
                                 Thread.currentThread().interrupt();
                                 LocalLogger.logSevere("Connection initialization interrupted: " + e.getMessage());
                                 logger.severe("Connection initialization interrupted: " + e.getMessage());
                                 chatClient.dispose();
-                                handleConnectionError(userSelectionPage, "Connection initialization failed");                                } catch (Exception e) {
+                                handleConnectionError(null, "Connection initialization failed");                                } catch (Exception e) {
                                 LocalLogger.logSevere("Error while initializing connection: " + e.getMessage());
                                 logger.severe("Error while initializing connection: " + e.getMessage());
                                 chatClient.dispose();
-                                handleConnectionError(userSelectionPage, "Error while initializing connection: " + e.getMessage());
+                                handleConnectionError(null, "Error while initializing connection: " + e.getMessage());
                             }
-                        }
-
-                        @Override
+                        }                        @Override
                         public void onCancel(MenuPage menuPageInstance) {
                             if (menuPageInstance != null) {
                                 menuPageInstance.dispose();
                             }
-                            // Return to user selection page
-                            userSelectionPage.setVisible(true);
+                            // Return to user selection page only if it's still valid
+                            if (userSelectionPage != null && userSelectionPage.isDisplayable()) {
+                                userSelectionPage.setVisible(true);
+                            } else {
+                                // Create a new user selection page if the old one was disposed
+                                String currentUsername = userSelectionPage != null ? 
+                                    userSelectionPage.getCurrentUsername() : 
+                                    promptForUsername();
+                                if (currentUsername != null && !currentUsername.trim().isEmpty()) {
+                                    UserSelectionPage newPage = new UserSelectionPage(currentUsername, userSelectionListener);
+                                    newPage.setVisible(true);
+                                } else {
+                                    System.exit(0);
+                                }
+                            }
                         }
                     };
 

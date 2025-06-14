@@ -83,11 +83,18 @@ public class ReadThread extends Thread {
                         processSystemMessage(msgStr);
                     } else {
                         client.appendMessage(msgStr);
-                    }
-                } else if (obj instanceof ChatMessage chatMsg) {
+                    }                } else if (obj instanceof ChatMessage chatMsg) {
+                    logger.info("Received ChatMessage from: " + chatMsg.getSender());
                     byte[] encrypted = Base64.getDecoder().decode(chatMsg.getEncryptedContent());
                     String decrypted = cryptoManager.decryptAES(encrypted);
-                    client.appendMessage(chatMsg.getSender() + ": " + decrypted);
+                    
+                    // For manual key exchange flow, don't display our own messages since they're already shown locally
+                    if (!chatMsg.getSender().equals(client.getUserName())) {
+                        client.appendMessage(chatMsg.getSender() + ": " + decrypted);
+                        logger.info("Displayed message from " + chatMsg.getSender() + ": " + decrypted);
+                    } else {
+                        logger.info("Ignoring own message from " + chatMsg.getSender());
+                    }
                     messageQueue.put(chatMsg);
                 } else if (obj instanceof KeyExchangeMessage keyExchangeMsg) {
                     // Handle automatic key exchange
@@ -120,10 +127,9 @@ public class ReadThread extends Thread {
     private void processSystemMessage(String message) {
         if (message.startsWith("USERLIST:")) {
             String userListStr = message.substring("USERLIST:".length());
-            client.updateUsersList(userListStr);
-        } else if (message.startsWith("CONNECT:")) {
+            client.updateUsersList(userListStr);        } else if (message.startsWith("CONNECT:")) {
             String username = message.substring("CONNECT:".length());
-            // client.appendMessage(username + " has joined the chat");
+            client.appendMessage(username + " has joined the chat");
         } else if (message.startsWith("DISCONNECT:")) {
             String username = message.substring("DISCONNECT:".length());
             SwingUtilities.invokeLater(() -> {
