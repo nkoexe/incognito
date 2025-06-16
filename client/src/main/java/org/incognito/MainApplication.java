@@ -97,56 +97,43 @@ public class MainApplication {
                                         "Key Exchange Error",
                                         JOptionPane.ERROR_MESSAGE);
                                 return;
-                            }                            // Store the current username and connection before disposing menu page
+                            }                            // Store the current username before disposing menu page
                             String currentUsername = userSelectionPage.getCurrentUsername();
-                            Connection existingConnection = userSelectionPage.getConnection();
                             
                             if (menuPageInstance != null) {
                                 menuPageInstance.dispose();
                             }
                             
+                            // For manual key exchange, dispose the user selection page normally
+                            // and create a fresh connection to avoid connection reuse complications
+                            userSelectionPage.disconnect();
+                            userSelectionPage.dispose();
+
                             // Create GUITest with the configured CryptoManager and user info
                             chatClient = new GUITest(readyCryptoManager, currentUsername, userSelectionListener);
                             chatClient.setVisible(true);
 
-                            // Reuse the existing connection from UserSelectionPage to avoid disconnect/reconnect
-                            Connection connection = existingConnection;
-                            boolean connected = (connection != null && connection.getSocket() != null && !connection.getSocket().isClosed());
-                            
-                            if (!connected) {
-                                // Only create new connection if existing one is invalid
-                                logger.info("Existing connection invalid, creating new connection");
-                                connection = new Connection();
-                                try {
-                                    connected = connection.connect();
-                                    if (!connected) {
-                                        LocalLogger.logSevere("Impossible connecting to server.");
-                                        logger.severe("Impossible connecting to server.");
-                                        chatClient.dispose();
-                                        handleConnectionError(null, "Impossible connecting to server.");
-                                        return;
-                                    }
-                                } catch (Exception e) {
-                                    LocalLogger.logSevere("Failed to connect to server: " + e.getMessage());
-                                    logger.severe("Failed to connect to server: " + e.getMessage());
+                            // Create a fresh connection for manual key exchange
+                            Connection connection = new Connection();
+                            boolean connected = false;
+                            try {
+                                connected = connection.connect();
+                                if (!connected) {
+                                    LocalLogger.logSevere("Impossible connecting to server.");
+                                    logger.severe("Impossible connecting to server.");
                                     chatClient.dispose();
-                                    handleConnectionError(null, "Failed to connect to server: " + e.getMessage());
+                                    handleConnectionError(null, "Impossible connecting to server.");
                                     return;
                                 }
-                            } else {
-                                logger.info("Reusing existing connection from UserSelectionPage for manual key exchange");
-                            }
-                            
-                            // Now we can safely dispose the user selection page since we've reused its connection
-                            userSelectionPage.disconnectWithoutClosingConnection();
-                            userSelectionPage.dispose();                            try {
-                                if (connected && existingConnection != null) {
-                                    // Use the version for reused connections to avoid re-registering username
-                                    chatClient.initializeConnectionWithUsernameReused(connection, currentUsername);
-                                } else {
-                                    // Use the version with username registration for new connections
-                                    chatClient.initializeConnectionWithUsername(connection, currentUsername);
-                                }
+                            } catch (Exception e) {
+                                LocalLogger.logSevere("Failed to connect to server: " + e.getMessage());
+                                logger.severe("Failed to connect to server: " + e.getMessage());
+                                chatClient.dispose();
+                                handleConnectionError(null, "Failed to connect to server: " + e.getMessage());
+                                return;
+                            }                            try {
+                                // Use the standard method for manual key exchange with fresh connection
+                                chatClient.initializeConnectionWithUsername(connection, currentUsername);
                             } catch (InterruptedException e) {
                                 Thread.currentThread().interrupt();
                                 LocalLogger.logSevere("Connection initialization interrupted: " + e.getMessage());

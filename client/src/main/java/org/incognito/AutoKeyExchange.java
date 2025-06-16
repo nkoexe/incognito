@@ -75,11 +75,11 @@ public class AutoKeyExchange {
                     KeyExchangeMessage response = new KeyExchangeMessage(
                             KeyExchangeMessage.Type.PUBLIC_KEY_OFFER,
                             chatClient.getUserName(),
-                            message.getSenderUsername());
-                    response.setPayload(cryptoManager.getPublicKeyBase64());
+                            message.getSenderUsername());                    response.setPayload(cryptoManager.getPublicKeyBase64());
                     writeThread.sendKeyExchangeMessage(response);
 
-                    chatClient.appendMessage("[System] Key exchange initiated with " + message.getSenderUsername());
+                    // Hidden: Technical key exchange message - not needed for user
+                    // chatClient.appendMessage("[System] Key exchange initiated with " + message.getSenderUsername());
                     break;
 
                 case PUBLIC_KEY_OFFER:
@@ -94,11 +94,11 @@ public class AutoKeyExchange {
                     KeyExchangeMessage sessionKeyMsg = new KeyExchangeMessage(
                             KeyExchangeMessage.Type.SESSION_KEY_OFFER,
                             chatClient.getUserName(),
-                            message.getSenderUsername());
-                    sessionKeyMsg.setPayload(encryptedKey);
+                            message.getSenderUsername());                    sessionKeyMsg.setPayload(encryptedKey);
                     writeThread.sendKeyExchangeMessage(sessionKeyMsg);
 
-                    chatClient.appendMessage("[System] Public key received, sending session key...");
+                    // Hidden: Technical key exchange progress message - not needed for user
+                    // chatClient.appendMessage("[System] Public key received, sending session key...");
                     break;
                 case SESSION_KEY_OFFER:
                     // Received encrypted session key - decrypt and confirm
@@ -108,11 +108,10 @@ public class AutoKeyExchange {
                             success ? KeyExchangeMessage.Type.EXCHANGE_COMPLETE
                                     : KeyExchangeMessage.Type.EXCHANGE_ERROR,
                             chatClient.getUserName(),
-                            message.getSenderUsername());
-
-                    if (success) {
+                            message.getSenderUsername());                    if (success) {
                         confirmMsg.setPayload("Key exchange completed successfully");
-                        chatClient.appendMessage("[System] Session key received and decrypted successfully");
+                        // Hidden: Technical success message - replaced with clearer message below
+                        // chatClient.appendMessage("[System] Session key received and decrypted successfully");
 
                         // Clean up the active exchange tracking for this client
                         String exchangeKey = chatClient.getUserName().compareTo(message.getSenderUsername()) < 0
@@ -124,18 +123,19 @@ public class AutoKeyExchange {
                         SwingUtilities.invokeLater(() -> {
                             chatClient.enableChatInterface();
                         });
-                        chatClient.appendMessage("[System] Key exchange completed! Chat is now secure.");
+                        // Hidden: Technical completion message - replaced with clearer message in enableChatInterface
+                        // chatClient.appendMessage("[System] Key exchange completed! Chat is now secure.");
                     } else {
                         confirmMsg.setPayload("Failed to decrypt session key");
                         chatClient.appendMessage("[System] ERROR: Failed to decrypt session key");
                     }
 
                     writeThread.sendKeyExchangeMessage(confirmMsg);
-                    break;
-                case EXCHANGE_COMPLETE:
+                    break;                case EXCHANGE_COMPLETE:
                     LocalLogger.logInfo("Key exchange completed with " + message.getSenderUsername());
                     logger.info("Key exchange completed with " + message.getSenderUsername());
-                    chatClient.appendMessage("[System] Key exchange completed! Chat is now secure.");
+                    // Hidden: Technical completion message - replaced with clearer message in enableChatInterface
+                    // chatClient.appendMessage("[System] Key exchange completed! Chat is now secure.");
 
                     // Clean up the active exchange tracking
                     String completedExchangeKey = chatClient.getUserName().compareTo(message.getSenderUsername()) < 0

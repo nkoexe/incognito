@@ -4,7 +4,6 @@ import org.incognito.crypto.CryptoManager;
 import org.incognito.GUI.UserSelectionPage;
 import org.incognito.GUI.theme.ModernTheme;
 
-import javax.crypto.SecretKey;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -54,21 +53,18 @@ public class GUITest extends JFrame {
 
     public GUITest(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {        this.cryptoManager = cryptoManager;        this.currentUsername = username;
         this.userSelectionListener = listener;
-        // Set up the UI components
-
-        // Check if the CryptoManager already has an AES session key (from manual key exchange)
+        // Set up the UI components        // Check if the CryptoManager already has an AES session key (from manual key exchange)
         try {
-            if (this.cryptoManager.getAesSessionKey() == null) {
-                // No session key exists, generate one (this should only happen for automatic key exchange)
-                SecretKey sessionKey = this.cryptoManager.generateAESKey();
-                this.cryptoManager.setAesSessionKey(sessionKey);
-                logger.info("AES session key generated and set for automatic key exchange.");
-            } else {
+            if (this.cryptoManager.getAesSessionKey() != null) {
                 logger.info("Using existing AES session key from manual key exchange.");
+            } else {
+                logger.info("No AES session key found - will be generated during automatic key exchange.");
+                // For automatic key exchange, the session key will be generated during the exchange process
+                // Do NOT generate one here as it will conflict with the AutoKeyExchange logic
             }
         } catch (Exception e) {
-            logger.severe("Error while handling AES session key: " + e.getMessage());
-            JOptionPane.showMessageDialog(this, "Fatal error: unable to handle session key.", "Cryptography error",
+            logger.severe("Error while checking AES session key: " + e.getMessage());
+            JOptionPane.showMessageDialog(this, "Fatal error: unable to check session key.", "Cryptography error",
                     JOptionPane.ERROR_MESSAGE);
             System.exit(1);
         }
@@ -219,10 +215,9 @@ public class GUITest extends JFrame {
             try {
                 String response = loginResponseQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
                 if ("USERNAME_ACCEPTED".equals(response)) {
-                    logger.info("Username " + username + " accepted by server");
-
-                    // Start automatic key exchange with target user
-                    appendMessage("[System] Initiating secure connection with " + targetUser + "...");
+                    logger.info("Username " + username + " accepted by server");                    // Start automatic key exchange with target user
+                    // Hidden: Technical message about initiating connection - not needed for user
+                    // appendMessage("[System] Initiating secure connection with " + targetUser + "...");
                     AutoKeyExchange.performKeyExchange(targetUser, username, cryptoManager, writeThread);
 
                 } else {
@@ -239,14 +234,14 @@ public class GUITest extends JFrame {
         }
     }    /**
      * Initialize connection with a provided username (used by manual key exchange flow)
-     */
-    public void initializeConnectionWithUsername(Connection connection, String username) throws InterruptedException {
+     */    public void initializeConnectionWithUsername(Connection connection, String username) throws InterruptedException {
         logger.info("Initializing connection with username: " + username);
         this.connection = connection;
         this.userName = username;
 
         if (connection.getSocket() != null) {
-            chatArea.append("Connected to server.\n");
+            // Hidden: Basic connection confirmation message - not needed for user
+            // chatArea.append("Connected to server.\n");
 
             BlockingQueue<String> loginQueue = new ArrayBlockingQueue<>(1);
 
@@ -269,16 +264,21 @@ public class GUITest extends JFrame {
             try {
                 Object response = loginQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
 
-                if (response instanceof String str) {
-                    switch (str) {                        case "USERNAME_ACCEPTED":
-                            chatArea.append("Username '" + userName + "' accepted.\n");
-                            chatArea.append("Ready for secure communication using pre-exchanged keys.\n");
+                if (response instanceof String str) {                    switch (str) {                        case "USERNAME_ACCEPTED":                            // Hidden: Technical username acceptance message - not needed for user
+                            // chatArea.append("Username '" + userName + "' accepted.\n");
+                            // Hidden: Confusing message about pre-exchanged keys - not clear to user
+                            // chatArea.append("Ready for secure communication using pre-exchanged keys.\n");
                             
                             // For manual key exchange, enable chat interface immediately since keys are already exchanged
-                            // No need to create a private chat session - server will handle manual key exchange messages
+                            // Request user list to show available users for messaging
+                            writeThread.sendMessage("REQUEST_USERLIST");
+                            
                             isSessionActive = true;
                             messageField.setEnabled(true);
                             sendButton.setEnabled(true);
+                            
+                            // Clear and simple message when chat is ready
+                            chatArea.append("✅ Chat is ready! You can now send secure messages.\n");
                             
                             break;
                         case "USERNAME_TAKEN":
@@ -302,18 +302,15 @@ public class GUITest extends JFrame {
         } else {
             throw new RuntimeException("Connection socket is null");
         }
-    }
-
-    /**
+    }    /**
      * Initialize connection with a provided username for reused connections (used by manual key exchange flow)
      */
     public void initializeConnectionWithUsernameReused(Connection connection, String username) throws InterruptedException {
         logger.info("Initializing connection with username (reused connection): " + username);
         this.connection = connection;
-        this.userName = username;
-
-        if (connection.getSocket() != null) {
-            chatArea.append("Connected to server.\n");
+        this.userName = username;        if (connection.getSocket() != null) {
+            // Hidden: Basic connection confirmation message - not needed for user
+            // chatArea.append("Connected to server.\n");
 
             // Start read and write threads for the reused connection
             writeThread = new WriteThread(connection.getSocket(), this, this.cryptoManager);
@@ -325,17 +322,23 @@ public class GUITest extends JFrame {
             // Update UI with current user's name
             setTitle("Incognito Chat - " + this.userName);
             usersModel.clear();
-            usersModel.addElement(this.userName + " (you)");
-
-            // For reused connections in manual key exchange, username is already registered
-            // Skip username registration and directly enable chat interface
-            chatArea.append("Username '" + userName + "' already registered.\n");
-            chatArea.append("Ready for secure communication using pre-exchanged keys.\n");
+            usersModel.addElement(this.userName + " (you)");            // For reused connections in manual key exchange, username is already registered
+            // But we still need to request the user list to see other users
+            // Hidden: Technical message about username registration - not needed for user
+            // chatArea.append("Username '" + userName + "' already registered.\n");
+            // Hidden: Confusing message about pre-exchanged keys - not clear to user
+            // chatArea.append("Ready for secure communication using pre-exchanged keys.\n");
+            
+            // Request user list to populate the users list for manual key exchange
+            writeThread.sendMessage("REQUEST_USERLIST");
             
             // For manual key exchange, enable chat interface immediately since keys are already exchanged
             isSessionActive = true;
             messageField.setEnabled(true);
             sendButton.setEnabled(true);
+
+            // Clear and simple message when chat is ready
+            chatArea.append("✅ Chat is ready! You can now send secure messages.\n");
 
         } else {
             throw new RuntimeException("Connection socket is null");
@@ -345,10 +348,9 @@ public class GUITest extends JFrame {
     public void initializeConnection(Connection connection) throws InterruptedException {
 
         logger.info("Initializing connection...");
-        this.connection = connection;
-
-        if (connection.getSocket() != null) {
-            chatArea.append("Connected to server.\n");
+        this.connection = connection;        if (connection.getSocket() != null) {
+            // Hidden: Basic connection confirmation message - not needed for user
+            // chatArea.append("Connected to server.\n");
 
             BlockingQueue<String> loginQueue = new ArrayBlockingQueue<>(1);
 
@@ -399,23 +401,23 @@ public class GUITest extends JFrame {
                 Object response = loginQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
 
                 if (response instanceof String str) {
-                    switch (str) {
-                        case "USERNAME_ACCEPTED":
-                            chatArea.append("Username '" + userName + "' accepted.\n");
+                    switch (str) {                        case "USERNAME_ACCEPTED":
+                            // Hidden: Technical username acceptance message - not needed for user
+                            // chatArea.append("Username '" + userName + "' accepted.\n");
                             break;
                         case "USERNAME_TAKEN":
                             JOptionPane.showMessageDialog(this, "Username already in use. Retry.");
                             // Recursively call initializeConnection to retry
                             initializeConnection(connection);
-                            return;
-                        case "WAITING_FOR_PEER":
-                            chatArea.append("Waiting for contact to connect...\n");
+                            return;                        case "WAITING_FOR_PEER":
+                            // Hidden: Technical waiting message - not clear to user what peer means
+                            // chatArea.append("Waiting for contact to connect...\n");
                             isSessionActive = false; // Reset session active flag
                             messageField.setEnabled(false);
                             sendButton.setEnabled(false);
-                            break;
-                        case "PEER_CONNECTED":
-                            chatArea.append("Contact connected! You can now start chatting.\n");
+                            break;                        case "PEER_CONNECTED":
+                            // Hidden: Technical peer connection message - will be replaced with clearer message
+                            // chatArea.append("Contact connected! You can now start chatting.\n");
                             // Enable message input and send button happens when ReadThread processes
                             // PEER_CONNECTED:namePeer:sessionId and will call handlePeerConnected
                             break;
@@ -564,11 +566,10 @@ public class GUITest extends JFrame {
                     connection.close();
                     connection = null;
                 }
-            }
-
-            // Update UI state
+            }            // Update UI state
             SwingUtilities.invokeLater(() -> {
-                chatArea.append("[System] Disconnected from server.\n");
+                // Hidden: Technical disconnection message - not needed for user
+                // chatArea.append("[System] Disconnected from server.\n");
                 isSessionActive = false;
                 if (messageField != null) {
                     messageField.setEnabled(false);
@@ -596,12 +597,13 @@ public class GUITest extends JFrame {
         }
     }
 
-    private void sendMessage(ActionEvent e) {
-        if (!isSessionActive) {
+    private void sendMessage(ActionEvent e) {        if (!isSessionActive) {
             ChatSessionLogger.logWarning("Attempted to send message while session is not active.");
             SwingUtilities
                     .invokeLater(() -> chatArea
-                            .append("[System] Unable to send: session not active or peer not connected.\n"));
+                            // Hidden: Technical error message - simplified for user
+                            // .append("[System] Unable to send: session not active or peer not connected.\n"));
+                            .append("Please wait for the chat to be ready before sending messages.\n"));
             return;
         }
 
@@ -630,11 +632,14 @@ public class GUITest extends JFrame {
 
     public void handlePeerConnected(String peerUsername, String sessionId) {
         this.isSessionActive = true;
-        ChatSessionLogger.logInfo("Peer connected: " + peerUsername + ", session: " + sessionId);
-        SwingUtilities.invokeLater(() -> {
+        ChatSessionLogger.logInfo("Peer connected: " + peerUsername + ", session: " + sessionId);        SwingUtilities.invokeLater(() -> {
             messageField.setEnabled(true);
             sendButton.setEnabled(true);
-            chatArea.append("[System] Connected with " + peerUsername + ". Session " + sessionId + " active.\n");
+            // Hidden: Technical session details - not needed for user
+            // chatArea.append("[System] Connected with " + peerUsername + ". Session " + sessionId + " active.\n");
+
+            // Clear and simple message when chat is ready
+            chatArea.append("✅ Chat is ready! You can now send secure messages.\n");
 
             // PER I BROOO!!!!!
             // Aggiorna la lista utenti per la chat 1-a-1
@@ -649,17 +654,18 @@ public class GUITest extends JFrame {
 
     public void handleServerNotification(String serverMessage) {
         SwingUtilities.invokeLater(() -> {
-            chatArea.append("Server: " + serverMessage + "\n");
-            if (serverMessage.startsWith("WAITING_FOR_PEER")) {
-                chatArea.append("[System] Waiting for peer...\n");
+            chatArea.append("Server: " + serverMessage + "\n");            if (serverMessage.startsWith("WAITING_FOR_PEER")) {
+                // Hidden: Technical waiting message - not clear to user what peer means
+                // chatArea.append("[System] Waiting for peer...\n");
                 this.isSessionActive = false;
                 messageField.setEnabled(false);
                 sendButton.setEnabled(false);
-                logger.info("Waiting for peer to connect... Chat UI disabled");
-            } else if (serverMessage.startsWith("PEER_DISCONNECTED")) {
+                logger.info("Waiting for peer to connect... Chat UI disabled");            } else if (serverMessage.startsWith("PEER_DISCONNECTED")) {
                 this.isSessionActive = false;
                 messageField.setEnabled(false);
-                sendButton.setEnabled(false);                chatArea.append("[System] " + serverMessage.substring("PEER_DISCONNECTED:".length()) + " has disconnected from the session.\n");
+                sendButton.setEnabled(false);                // Hidden: Technical peer disconnection message - simplified for user
+                // chatArea.append("[System] " + serverMessage.substring("PEER_DISCONNECTED:".length()) + " has disconnected from the session.\n");
+                chatArea.append("Contact has left the chat.\n");
                 logger.info("Peer " + serverMessage.substring("PEER_DISCONNECTED:".length()) + " disconnected. Chat UI disabled.");
                 if (usersModel.size() > 0) {
                     for (int i = 0; i < usersModel.getSize(); i++) {
@@ -688,12 +694,13 @@ public class GUITest extends JFrame {
     /**
      * Enable chat interface after successful key exchange
      */
-    public void enableChatInterface() {
-        SwingUtilities.invokeLater(() -> {
+    public void enableChatInterface() {        SwingUtilities.invokeLater(() -> {
             isSessionActive = true;
             messageField.setEnabled(true);
             sendButton.setEnabled(true);
-            appendMessage("[System] Chat interface enabled - you can now send messages securely!");
+            // Hidden: Technical message about interface enabling - replaced with clearer message
+            // appendMessage("[System] Chat interface enabled - you can now send messages securely!");
+            appendMessage("✅ Chat is ready! You can now send secure messages.");
         });
     }
 

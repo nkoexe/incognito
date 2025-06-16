@@ -509,41 +509,7 @@ public class UserSelectionPage extends JFrame {
 
     public UserSelectionListener getListener() {
         return listener;
-    }
-
-    public Connection getConnection() {
+    }    public Connection getConnection() {
         return connection;
-    }
-      /**
-     * Disconnect from server but keep the connection object for reuse
-     * This is used during manual key exchange to avoid creating a new connection
-     */
-    public void disconnectWithoutClosingConnection() {
-        try {
-            // Close server output stream to signal disconnect but keep the socket
-            if (serverOutput != null) {
-                try {
-                    serverOutput.close();
-                    serverOutput = null;
-                    logger.fine("Closed server output stream for connection reuse");
-                } catch (IOException e) {
-                    logger.warning("Error closing output stream: " + e.getMessage());
-                }
-            }
-
-            // Note: We intentionally do NOT close the connection here 
-            // as it will be reused by the chat application
-
-            // Update UI state in a thread-safe way
-            SwingUtilities.invokeLater(() -> {
-                usersModel.clear();
-                statusLabel.setText("Preparing for manual key exchange...");
-            });
-
-        } catch (Exception e) {
-            // Catch any unexpected errors during cleanup
-            logger.severe("Unexpected error during partial disconnect: " + e.getMessage());
-            e.printStackTrace();
-        }
     }
 }

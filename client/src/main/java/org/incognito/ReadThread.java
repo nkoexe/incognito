@@ -128,14 +128,16 @@ public class ReadThread extends Thread {
         if (message.startsWith("USERLIST:")) {
             String userListStr = message.substring("USERLIST:".length());
             client.updateUsersList(userListStr);        } else if (message.startsWith("CONNECT:")) {
-            String username = message.substring("CONNECT:".length());
-            client.appendMessage(username + " has joined the chat");
+            // Hidden: Join notification - can be confusing in 1-to-1 chat context
+            // String username = message.substring("CONNECT:".length());
+            // client.appendMessage(username + " has joined the chat");
         } else if (message.startsWith("DISCONNECT:")) {
             String username = message.substring("DISCONNECT:".length());
             SwingUtilities.invokeLater(() -> {
                 client.removeUser(username);
             });
-            client.appendMessage(username + " has left the chat");
+            // Hidden: Leave notification - can be confusing in 1-to-1 chat context
+            // client.appendMessage(username + " has left the chat");
         } else if (message.startsWith("SERVER:")) {
             String serverMessage = message.substring("SERVER:".length());
             client.appendMessage("[Server] " + serverMessage);
