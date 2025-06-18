@@ -36,6 +36,15 @@ public class CryptoManager {
         this.aesSessionKey = key;
     }
 
+    /**
+     * Reset session state for a new chat session.
+     * Clears AES session key and other user's public key.
+     */
+    public void resetSession() {
+        this.aesSessionKey = null;
+        this.otherUserPublicKey = null;
+    }
+
     public PublicKey decodePublicKey(String base64) throws Exception {
         byte[] decoded = Base64.getDecoder().decode(base64);
         X509EncodedKeySpec spec = new X509EncodedKeySpec(decoded);

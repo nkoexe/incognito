@@ -44,12 +44,15 @@ public class GUITest extends JFrame {
     /**
      * Reference to the selection page listener to enable returning to main menu
      */
-    private UserSelectionPage.UserSelectionListener userSelectionListener;
-
-    /**
+    private UserSelectionPage.UserSelectionListener userSelectionListener;    /**
      * Stores the current username to maintain identity when returning to main menu
      */
     private String currentUsername;
+
+    /**
+     * Stores the username of the current chat partner (used for cleanup when disconnecting)
+     */
+    private String currentChatPartner;
 
     public GUITest(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {        this.cryptoManager = cryptoManager;        this.currentUsername = username;
         this.userSelectionListener = listener;
@@ -194,10 +197,10 @@ public class GUITest extends JFrame {
      * automated flow)
      */
     public void initializeConnectionWithUsername(Connection connection, String username, String targetUser)
-            throws InterruptedException {
-        logger.info("Initializing connection with username: " + username + " targeting: " + targetUser);
+            throws InterruptedException {        logger.info("Initializing connection with username: " + username + " targeting: " + targetUser);
         this.connection = connection;
         this.userName = username;
+        this.currentChatPartner = targetUser; // Track target user for cleanup
 
         if (connection.getSocket() != null) {
             // Create threads for the existing connection
@@ -213,9 +216,11 @@ public class GUITest extends JFrame {
 
             // Wait for server to accept username
             try {
-                String response = loginResponseQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
-                if ("USERNAME_ACCEPTED".equals(response)) {
-                    logger.info("Username " + username + " accepted by server");                    // Start automatic key exchange with target user
+                String response = loginResponseQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);                if ("USERNAME_ACCEPTED".equals(response)) {
+                    logger.info("Username " + username + " accepted by server");                    // Reset crypto manager session state for fresh key exchange
+                    cryptoManager.resetSession();
+                    
+                    // Start automatic key exchange with target user
                     // Hidden: Technical message about initiating connection - not needed for user
                     // appendMessage("[System] Initiating secure connection with " + targetUser + "...");
                     AutoKeyExchange.performKeyExchange(targetUser, username, cryptoManager, writeThread);
@@ -537,10 +542,15 @@ public class GUITest extends JFrame {
         SwingUtilities.invokeLater(() -> {
             chatArea.append(message + "\n");
         });
-    }    private void disconnect() {
-        try {
+    }    private void disconnect() {        try {
             // Log disconnection attempt
             logger.info("Initiating disconnection for user: " + userName);
+            
+            // Clean up key exchange tracking if we have a chat partner
+            if (currentChatPartner != null && userName != null) {
+                AutoKeyExchange.cleanupExchange(userName, currentChatPartner);
+                currentChatPartner = null; // Clear the partner reference
+            }
             
             // Interrupt and cleanup threads
             if (readThread != null) {
@@ -628,11 +638,10 @@ public class GUITest extends JFrame {
         // The actual sending is handled by WriteThread
         logger.info("Sending message: " + message);
         writeThread.sendMessage(message);
-    }
-
-    public void handlePeerConnected(String peerUsername, String sessionId) {
+    }    public void handlePeerConnected(String peerUsername, String sessionId) {
         this.isSessionActive = true;
-        ChatSessionLogger.logInfo("Peer connected: " + peerUsername + ", session: " + sessionId);        SwingUtilities.invokeLater(() -> {
+        this.currentChatPartner = peerUsername; // Track current chat partner for cleanup
+        ChatSessionLogger.logInfo("Peer connected: " + peerUsername + ", session: " + sessionId);SwingUtilities.invokeLater(() -> {
             messageField.setEnabled(true);
             sendButton.setEnabled(true);
             // Hidden: Technical session details - not needed for user

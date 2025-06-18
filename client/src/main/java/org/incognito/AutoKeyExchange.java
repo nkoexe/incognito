@@ -4,7 +4,6 @@ import org.incognito.crypto.CryptoManager;
 import javax.crypto.SecretKey;
 import javax.swing.SwingUtilities;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 public class AutoKeyExchange {
@@ -24,13 +23,13 @@ public class AutoKeyExchange {
                 // Create a unique exchange identifier
                 String exchangeKey = currentUsername.compareTo(targetUsername) < 0
                         ? currentUsername + "-" + targetUsername
-                        : targetUsername + "-" + currentUsername;
-
-                // Check if exchange is already in progress
+                        : targetUsername + "-" + currentUsername;                // Check if exchange is already in progress
                 if (!activeExchanges.add(exchangeKey)) {
-                    LocalLogger.logInfo("Key exchange already in progress with " + targetUsername);
-                    logger.info("Key exchange already in progress with " + targetUsername);
-                    return true; // Already in progress, consider it successful
+                    LocalLogger.logInfo("Key exchange already in progress with " + targetUsername + ". Clearing old exchange and starting new one.");
+                    logger.info("Key exchange already in progress with " + targetUsername + ". Clearing old exchange and starting new one.");
+                    // Remove the old exchange and proceed with new one (this handles rejoining scenarios)
+                    activeExchanges.remove(exchangeKey);
+                    activeExchanges.add(exchangeKey);
                 }
 
                 LocalLogger.logInfo("Starting automatic key exchange with " + targetUsername);
@@ -163,8 +162,22 @@ public class AutoKeyExchange {
         } catch (Exception e) {
             LocalLogger.logSevere("Error handling key exchange message: " + e.getMessage());
             logger.severe("Error handling key exchange message: " + e.getMessage());
-            e.printStackTrace();
-            chatClient.appendMessage("[System] Error during key exchange: " + e.getMessage());
+            e.printStackTrace();            chatClient.appendMessage("[System] Error during key exchange: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Clean up active exchanges for a specific user pair.
+     * Call this when users disconnect to allow fresh key exchanges on reconnection.
+     */
+    public static void cleanupExchange(String user1, String user2) {
+        String exchangeKey = user1.compareTo(user2) < 0
+                ? user1 + "-" + user2
+                : user2 + "-" + user1;
+        boolean removed = activeExchanges.remove(exchangeKey);
+        if (removed) {
+            LocalLogger.logInfo("Cleaned up key exchange tracking for " + user1 + " and " + user2);
+            logger.info("Cleaned up key exchange tracking for " + user1 + " and " + user2);
         }
     }
 }
