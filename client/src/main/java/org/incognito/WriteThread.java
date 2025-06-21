@@ -29,9 +29,22 @@ public class WriteThread extends Thread {
         try {
             outputStream = new ObjectOutputStream(socket.getOutputStream());
         } catch (IOException e) {
-            LocalLogger.logSevere("Error initializing WriteThread: " + e.getMessage());
-            logger.severe("Error getting output stream: " + e.getMessage());
-            e.printStackTrace();
+            ErrorHandler.handleConnectionError(
+                client,
+                "Failed to initialize message sending",
+                true,
+                () -> {
+                    try {
+                        outputStream = new ObjectOutputStream(socket.getOutputStream());
+                    } catch (IOException retryEx) {
+                        ErrorHandler.handleFatalError(
+                            client,
+                            "Failed to initialize message sending after retry",
+                            retryEx
+                        );
+                    }
+                }
+            );
         }
     }
 
@@ -42,59 +55,88 @@ public class WriteThread extends Thread {
                 String message = messageQueue.take();
 
                 if (outputStream == null) {
-                    LocalLogger.logSevere("Cannot send message - outputStream is null");
-                    logger.severe("Cannot send message - outputStream is null");
+                    ErrorHandler.handleConnectionError(
+                        client,
+                        "Cannot send message - connection lost",
+                        true,
+                        () -> {
+                            try {
+                                client.initializeConnection(new Connection());
+                                messageQueue.put(message); // Retry sending the message
+                            } catch (Exception ex) {
+                                ErrorHandler.handleFatalError(
+                                    client,
+                                    "Failed to reconnect",
+                                    ex
+                                );
+                            }
+                        }
+                    );
                     continue;
                 }
 
                 if (message.startsWith("USERLIST:") ||
                         message.startsWith("CONNECT:") ||
                         message.startsWith("DISCONNECT:")) {
-
-                    // Send system messages as plain strings (no encryption)
                     outputStream.writeObject(message);
                 } else {
                     if (cryptoManager.getAesSessionKey() == null) {
-                        LocalLogger.logSevere("AES session key is null. Cannot encrypt message.");
-                        logger.severe("AES session key is null. Cannot encrypt message.");
-                        client.appendMessage("[SYSTEM] AES session key is null. Cannot encrypt message.");
+                        ErrorHandler.handleCryptoError(
+                            client,
+                            "Cannot send encrypted message - no session key available",
+                            new Exception("Missing AES session key"),
+                            () -> AutoKeyExchange.performKeyExchange(
+                                client.getUserName(),
+                                message,
+                                cryptoManager,
+                                this
+                            )
+                        );
                         continue;
                     }
-                    // Encrypt message, encode to base64
-                    byte[] encrypted = cryptoManager.encryptAES(message);
-                    String encoded = Base64.getEncoder().encodeToString(encrypted);
 
-                    // Wrap in ChatMessage object
-                    ChatMessage chatMsg = new ChatMessage(client.getUserName(), encoded);
-
-                    // Send ChatMessage object
-                    outputStream.writeObject(chatMsg);
+                    try {
+                        byte[] encrypted = cryptoManager.encryptAES(message);
+                        String encoded = Base64.getEncoder().encodeToString(encrypted);
+                        ChatMessage chatMsg = new ChatMessage(client.getUserName(), encoded);
+                        outputStream.writeObject(chatMsg);
+                    } catch (Exception e) {
+                        ErrorHandler.handleCryptoError(
+                            client,
+                            "Failed to encrypt message",
+                            e,
+                            () -> messageQueue.put(message) // Retry sending the message
+                        );
+                        continue;
+                    }
                 }
 
                 outputStream.flush();
 
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                break;
             } catch (Exception ex) {
-                LocalLogger.logSevere("Error sending message: " + ex.getMessage());
-                logger.severe("Error sending message: " + ex.getMessage());
-                client.appendMessage("[SYSTEM] Error sending message: " + ex.getMessage());
-                ex.printStackTrace();
+                ErrorHandler.handleSessionError(
+                    client,
+                    "Error sending message: " + ex.getMessage(),
+                    reconnect -> {
+                        if (reconnect) {
+                            try {
+                                client.initializeConnection(new Connection());
+                            } catch (Exception e) {
+                                ErrorHandler.handleFatalError(
+                                    client,
+                                    "Failed to reconnect",
+                                    e
+                                );
+                            }
+                        }
+                    }
+                );
             }
         }
         close();
-    }
-
-    private void processSystemMessage(String message) {
-        try {
-            if (outputStream != null) {
-                outputStream.writeObject(message);
-            } else {
-                LocalLogger.logSevere("Cannot send system message - outputStream is null");
-                logger.severe("Cannot send system message - outputStream is null");
-            }
-        } catch (IOException e) {
-            logger.severe("Error sending system message: " + e.getMessage());
-            e.printStackTrace();
-        }
     }
 
     public void close() {
@@ -119,8 +161,23 @@ public class WriteThread extends Thread {
     public void sendKeyExchangeMessage(KeyExchangeMessage keyExchangeMessage) {
         try {
             if (outputStream == null) {
-                LocalLogger.logSevere("Cannot send key exchange message - outputStream is null");
-                logger.severe("Cannot send key exchange message - outputStream is null");
+                ErrorHandler.handleConnectionError(
+                    client,
+                    "Cannot send key exchange - connection lost",
+                    true,
+                    () -> {
+                        try {
+                            client.initializeConnection(new Connection());
+                            sendKeyExchangeMessage(keyExchangeMessage); // Retry
+                        } catch (Exception ex) {
+                            ErrorHandler.handleFatalError(
+                                client,
+                                "Failed to reconnect for key exchange",
+                                ex
+                            );
+                        }
+                    }
+                );
                 return;
             }
 
@@ -128,9 +185,12 @@ public class WriteThread extends Thread {
             outputStream.writeObject(keyExchangeMessage);
             outputStream.flush();
         } catch (Exception e) {
-            LocalLogger.logSevere("Error sending key exchange message: " + e.getMessage());
-            logger.severe("Error sending key exchange message: " + e.getMessage());
-            e.printStackTrace();
+            ErrorHandler.handleCryptoError(
+                client,
+                "Failed to send key exchange message",
+                e,
+                () -> sendKeyExchangeMessage(keyExchangeMessage) // Retry
+            );
         }
     }
 }

@@ -59,18 +59,33 @@ public class GUITest extends JFrame {
         this.cryptoManager = cryptoManager;
         this.currentUsername = username;
         this.userSelectionListener = listener;
-        // Set up the UI components
 
         try {
             SecretKey sessionKey = this.cryptoManager.generateAESKey();
             this.cryptoManager.setAesSessionKey(sessionKey);
             logger.info("AES session key generated and set.");
         } catch (Exception e) {
-            logger.severe("Error while generating AES session key: " + e.getMessage());
-            JOptionPane.showMessageDialog(this, "Fatal error: unable to generate session key.", "Cryptography error",
-                    JOptionPane.ERROR_MESSAGE);
-            System.exit(1); // O gestisci diversamente
-        }        setTitle("Incognito Chat");
+            ErrorHandler.handleCryptoError(
+                this,
+                "Failed to generate session key",
+                e,
+                () -> {
+                    try {
+                        SecretKey retryKey = this.cryptoManager.generateAESKey();
+                        this.cryptoManager.setAesSessionKey(retryKey);
+                    } catch (Exception retryEx) {
+                        ErrorHandler.handleFatalError(
+                            this,
+                            "Failed to generate session key after retry",
+                            retryEx
+                        );
+                    }
+                }
+            );
+        }
+
+        // Set up the UI components
+        setTitle("Incognito Chat");
         setSize(720, 480);
         setLocationRelativeTo(null); // Center the window
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // Handle close in windowClosing event
@@ -287,93 +302,145 @@ public class GUITest extends JFrame {
 
             BlockingQueue<String> loginQueue = new ArrayBlockingQueue<>(1);
 
-            // Start read and write threads
-            writeThread = new WriteThread(connection.getSocket(), this, this.cryptoManager);
-            readThread = new ReadThread(connection.getSocket(), this, this.cryptoManager, loginQueue);
-
-            writeThread.start();
-            readThread.start();
-
-            String inputName = JOptionPane.showInputDialog(
-                    this,
-                    "Enter your username:",
-                    "Username",
-                    JOptionPane.QUESTION_MESSAGE);
-
-            // Check if inputName is null or empty
-            if (inputName == null || inputName.trim().isEmpty()) {
-                inputName = "Guest" + (int) (Math.random() * 1000);
-            }
-
-            this.userName = inputName.trim();
-
-            // Send username to server
-            logger.info("Sending username: " + inputName);
-            writeThread.sendMessage("USERLIST:" + this.userName);
-
-            // Update UI with current user's name
-            setTitle("Incognito Chat - " + this.userName);
-            usersModel.clear();
-            usersModel.addElement(this.userName + " (you)");
-
-            // New for 1-to-1 chat
-            String sessionId = generateSessionId();
-
-            if (sessionId != null) {
-                writeThread.sendMessage("PRIVATE_CHAT:" + inputName + ":" + sessionId);
-                logger.info("Sending message PRIVATE_CHAT with sessionId: " + sessionId);
-            } else {
-                logger.warning("Session ID is null.");
-                JOptionPane.showMessageDialog(this, "Session ID cannot be null.", "Error", JOptionPane.ERROR_MESSAGE);
-                logger.warning("Couldn't send session ID to server.");
-                disconnect();
-                return;
-            }
-
             try {
-                Object response = loginQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
+                // Start read and write threads
+                writeThread = new WriteThread(connection.getSocket(), this, this.cryptoManager);
+                readThread = new ReadThread(connection.getSocket(), this, this.cryptoManager, loginQueue);
 
-                if (response instanceof String str) {
-                    switch (str) {
-                        case "USERNAME_ACCEPTED":
-                            chatArea.append("Username '" + userName + "' accepted.\n");
-                            break;
-                        case "USERNAME_TAKEN":
-                            JOptionPane.showMessageDialog(this, "Username already in use. Retry.");
-                            // Recursively call initializeConnection to retry
-                            initializeConnection(connection);
-                            return;
-                        case "WAITING_FOR_PEER":
-                            chatArea.append("Waiting for contact to connect...\n");
-                            isSessionActive = false; // Reset session active flag
-                            messageField.setEnabled(false);
-                            sendButton.setEnabled(false);
-                            break;
-                        case "PEER_CONNECTED":
-                            chatArea.append("Contact connected! You can now start chatting.\n");
-                            // Enable message input and send button happens when ReadThread processes
-                            // PEER_CONNECTED:namePeer:sessionId and will call handlePeerConnected
-                            break;
-                        default:
-                            logger.warning("Unknown server response: " + str);
-                            JOptionPane.showMessageDialog(this, "Unknown server response. Retry.");
-                            disconnect();
-                            break;
+                writeThread.start();
+                readThread.start();
+
+                String inputName = JOptionPane.showInputDialog(
+                        this,
+                        "Enter your username:",
+                        "Username",
+                        JOptionPane.QUESTION_MESSAGE);
+
+                // Check if inputName is null or empty
+                if (inputName == null || inputName.trim().isEmpty()) {
+                    inputName = "Guest" + (int) (Math.random() * 1000);
+                }
+
+                this.userName = inputName.trim();
+
+                // Send username to server
+                logger.info("Sending username: " + inputName);
+                writeThread.sendMessage("USERLIST:" + this.userName);
+
+                // Update UI with current user's name
+                setTitle("Incognito Chat - " + this.userName);
+                usersModel.clear();
+                usersModel.addElement(this.userName + " (you)");
+
+                // New for 1-to-1 chat
+                String sessionId = generateSessionId();
+
+                if (sessionId != null) {
+                    writeThread.sendMessage("PRIVATE_CHAT:" + inputName + ":" + sessionId);
+                    logger.info("Sending message PRIVATE_CHAT with sessionId: " + sessionId);
+                } else {
+                    ErrorHandler.handleSessionError(
+                        this,
+                        "Failed to generate session ID",
+                        reconnect -> {
+                            if (reconnect) {
+                                try {
+                                    String newSessionId = generateSessionId();
+                                    writeThread.sendMessage("PRIVATE_CHAT:" + inputName + ":" + newSessionId);
+                                } catch (Exception e) {
+                                    ErrorHandler.handleFatalError(
+                                        this,
+                                        "Failed to generate session ID after retry",
+                                        e
+                                    );
+                                }
+                            } else {
+                                disconnect();
+                            }
+                        }
+                    );
+                    return;
+                }
+
+                try {
+                    Object response = loginQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
+                    if (response instanceof String str) {
+                        switch (str) {
+                            case "USERNAME_ACCEPTED":
+                                chatArea.append("Username '" + userName + "' accepted.\n");
+                                break;
+                            case "USERNAME_TAKEN":
+                                ErrorHandler.showWarning(
+                                    this,
+                                    "Username '" + userName + "' is already in use",
+                                    "Please try a different username"
+                                );
+                                initializeConnection(connection); // Retry
+                                return;
+                            case "WAITING_FOR_PEER":
+                                chatArea.append("Waiting for contact to connect...\n");
+                                isSessionActive = false;
+                                messageField.setEnabled(false);
+                                sendButton.setEnabled(false);
+                                break;
+                            case "PEER_CONNECTED":
+                                chatArea.append("Contact connected! You can now start chatting.\n");
+                                break;
+                            default:
+                                ErrorHandler.showWarning(
+                                    this,
+                                    "Unknown server response: " + str,
+                                    "The connection will be closed and retried"
+                                );
+                                disconnect();
+                                break;
+                        }
+                    } else if (response == null) {
+                        ErrorHandler.handleConnectionError(
+                            this,
+                            "Server response timeout",
+                            true,
+                            () -> {
+                                try {
+                                    initializeConnection(connection);
+                                } catch (InterruptedException e) {
+                                    Thread.currentThread().interrupt();
+                                }
+                            }
+                        );
                     }
-                } else if (response == null) {
-                    chatArea.append("Server response is null.\n");
-                    logger.warning("Timeout waiting for server response.");
+                } catch (InterruptedException e) {
+                    logger.severe("Error while waiting for server response: " + e.getMessage());
+                    Thread.currentThread().interrupt();
+                    ErrorHandler.handleConnectionError(
+                        this,
+                        "Connection interrupted: " + e.getMessage(),
+                        false,
+                        null
+                    );
                     disconnect();
                 }
-            } catch (InterruptedException e) {
-                logger.severe("Error while waiting for server response: " + e.getMessage());
-                chatArea.append("Error while waiting for server response: " + e.getMessage() + "\n");
-                Thread.currentThread().interrupt(); // Restore the interrupted status
-                disconnect();
+            } catch (Exception e) {
+                ErrorHandler.handleConnectionError(
+                    this,
+                    "Failed to initialize connection: " + e.getMessage(),
+                    true,
+                    () -> {
+                        try {
+                            initializeConnection(connection);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                );
             }
-
         } else {
-            chatArea.append("Failed to connect to server.\n");
+            ErrorHandler.handleConnectionError(
+                this,
+                "Connection socket is null",
+                false,
+                null
+            );
         }
     }
 
@@ -513,7 +580,7 @@ public class GUITest extends JFrame {
                     sendButton.setEnabled(false);
                 }
                 if (exitChatButton != null) {
-                    exitChatButton.setEnabled(true); // Always allow exiting
+                    exitChatButton.setEnabled(true);
                 }
                 if (usersModel != null) {
                     usersModel.clear();
@@ -525,42 +592,79 @@ public class GUITest extends JFrame {
             ChatSessionLogger.logInfo("Chat session ended - disconnected from server");
             
         } catch (Exception e) {
+            ErrorHandler.showWarning(
+                this,
+                "Error during disconnection: " + e.getMessage(),
+                "Some resources may not have been properly released"
+            );
             logger.severe("Error during disconnection: " + e.getMessage());
             e.printStackTrace();
-            ChatSessionLogger.logInfo("Error occurred during disconnection: " + e.getMessage());
+            ChatSessionLogger.logSevere("Error occurred during disconnection: " + e.getMessage());
         }
     }
 
     private void sendMessage(ActionEvent e) {
         if (!isSessionActive) {
-            ChatSessionLogger.logWarning("Attempted to send message while session is not active.");
-            SwingUtilities
-                    .invokeLater(() -> chatArea
-                            .append("[System] Unable to send: session not active or peer not connected.\n"));
+            ErrorHandler.showWarning(
+                this,
+                "Cannot send message - session is not active",
+                "Please wait for peer connection to be established"
+            );
             return;
         }
 
         String message = messageField.getText().trim();
-        ChatSessionLogger
-                .logInfo("Attempting to send message: " + message.substring(0, Math.min(20, message.length())) + "...");
-        if (message.isEmpty())
-            return;
-
-        if (writeThread == null || !writeThread.isAlive()) {
-            chatArea.append("ERROR: Cannot send message - not connected to server or writer thread inactive\n");
-            logger.severe("WriteThread is null or not alive when trying to send: " + message);
+        if (message.isEmpty()) {
             return;
         }
 
-        // Display message immediately in local chat area
-        chatArea.append("You: " + message + "\n");
+        if (writeThread == null || !writeThread.isAlive()) {
+            ErrorHandler.handleSessionError(
+                this,
+                "Cannot send message - connection to server lost",
+                reconnect -> {
+                    if (reconnect) {
+                        try {
+                            Connection newConnection = new Connection();
+                            if (newConnection.connect()) {
+                                initializeConnection(newConnection);
+                            }
+                        } catch (Exception ex) {
+                            ErrorHandler.handleConnectionError(
+                                this,
+                                "Failed to reconnect: " + ex.getMessage(),
+                                false,
+                                null
+                            );
+                        }
+                    }
+                }
+            );
+            return;
+        }
 
-        // Clear message field
-        messageField.setText("");
+        try {
+            // Display message immediately in local chat area
+            chatArea.append("You: " + message + "\n");
+            
+            // Clear message field
+            messageField.setText("");
 
-        // The actual sending is handled by WriteThread
-        logger.info("Sending message: " + message);
-        writeThread.sendMessage(message);
+            // Send through WriteThread
+            logger.info("Sending message: " + message);
+            writeThread.sendMessage(message);
+            
+        } catch (Exception ex) {
+            ErrorHandler.handleSessionError(
+                this,
+                "Failed to send message: " + ex.getMessage(),
+                reconnect -> {
+                    if (reconnect) {
+                        messageField.setText(message); // Restore message for retry
+                    }
+                }
+            );
+        }
     }
 
     public void handlePeerConnected(String peerUsername, String sessionId) {
@@ -672,4 +776,15 @@ public class GUITest extends JFrame {
         }
     }
   
+    public Socket getSocket() {
+        return socket;
+    }
+
+    public CryptoManager getCryptoManager() {
+        return cryptoManager;
+    }
+
+    public WriteThread getWriteThread() {
+        return writeThread;
+    }
 }

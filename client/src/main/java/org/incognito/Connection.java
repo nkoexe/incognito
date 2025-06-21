@@ -1,8 +1,6 @@
 package org.incognito;
 
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.util.logging.Logger;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -13,7 +11,6 @@ public class Connection {
     // localhost for testing
     private String host = "127.0.0.1";
     private int port = 58239;
-
     private Socket socket;
 
     public Socket getSocket() {
@@ -27,17 +24,25 @@ public class Connection {
             logger.info("Connected to server at " + host + ":" + port);
             return true;
         } catch (UnknownHostException e) {
-            LocalLogger.logSevere("Unknown host: " + host);
-            logger.severe("Unknown host: " + host);
-            e.printStackTrace();
+            ErrorHandler.handleConnectionError(
+                null,
+                "Server address '" + host + "' could not be resolved",
+                true,
+                () -> connect()
+            );
         } catch (IOException e) {
-            LocalLogger.logSevere("IOException while connecting to server");
-            logger.severe("IOException while connecting to server");
-            e.printStackTrace();
+            ErrorHandler.handleConnectionError(
+                null,
+                "Could not connect to server at " + host + ":" + port,
+                true,
+                () -> connect()
+            );
         } catch (Exception e) {
-            LocalLogger.logSevere("Unexpected error while connecting");
-            logger.severe("Unexpected error while connecting");
-            e.printStackTrace();
+            ErrorHandler.handleFatalError(
+                null,
+                "Unexpected error while connecting to server",
+                e
+            );
         }
         return false;
     }
@@ -50,9 +55,11 @@ public class Connection {
                 logger.info("Connection closed");
             }
         } catch (IOException e) {
-            LocalLogger.logSevere("Error while closing connection");
-            logger.severe("Error while closing connection");
-            e.printStackTrace();
+            ErrorHandler.showWarning(
+                null,
+                "Error while closing connection: " + e.getMessage(),
+                "Some resources may not have been properly released"
+            );
         }
     }
 

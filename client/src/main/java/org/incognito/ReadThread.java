@@ -37,17 +37,33 @@ public class ReadThread extends Thread {
         this.loginResponseQueue = loginResponseQueue;
 
         try {
-            // Ensure socket is not closed before creating input stream
             if (socket.isClosed()) {
-                LocalLogger.logSevere("Socket is closed, cannot create input stream");
-                logger.severe("Socket is closed, cannot create input stream");
+                ErrorHandler.handleConnectionError(
+                    client,
+                    "Cannot create input stream - socket is closed",
+                    false,
+                    null
+                );
                 return;
             }
             inputStream = new ObjectInputStream(socket.getInputStream());
         } catch (IOException ex) {
-            LocalLogger.logSevere("Error getting input stream: " + ex.getMessage());
-            logger.severe("Error getting input stream: " + ex.getMessage());
-            ex.printStackTrace();
+            ErrorHandler.handleConnectionError(
+                client,
+                "Failed to initialize read stream",
+                ex,
+                () -> {
+                    try {
+                        inputStream = new ObjectInputStream(socket.getInputStream());
+                    } catch (IOException retryEx) {
+                        ErrorHandler.handleFatalError(
+                            client,
+                            "Failed to initialize read stream after retry",
+                            retryEx
+                        );
+                    }
+                }
+            );
         }
     }
 
@@ -85,22 +101,57 @@ public class ReadThread extends Thread {
                         client.appendMessage(msgStr);
                     }
                 } else if (obj instanceof ChatMessage chatMsg) {
-                    byte[] encrypted = Base64.getDecoder().decode(chatMsg.getEncryptedContent());
-                    String decrypted = cryptoManager.decryptAES(encrypted);
-                    client.appendMessage(chatMsg.getSender() + ": " + decrypted);
-                    messageQueue.put(chatMsg);
+                    try {
+                        byte[] encrypted = Base64.getDecoder().decode(chatMsg.getEncryptedContent());
+                        String decrypted = cryptoManager.decryptAES(encrypted);
+                        client.appendMessage(chatMsg.getSender() + ": " + decrypted);
+                        messageQueue.put(chatMsg);
+                    } catch (Exception e) {
+                        ErrorHandler.handleCryptoError(
+                            client,
+                            "Failed to decrypt message from " + chatMsg.getSender(),
+                            e,
+                            null
+                        );
+                    }
                 } else if (obj instanceof KeyExchangeMessage keyExchangeMsg) {
-                    // Handle automatic key exchange
-                    AutoKeyExchange.handleIncomingKeyExchange(keyExchangeMsg, cryptoManager,
-                            client.getWriteThread(), client);
-                    messageQueue.put(keyExchangeMsg);
+                    try {
+                        // Handle automatic key exchange
+                        AutoKeyExchange.handleIncomingKeyExchange(keyExchangeMsg, cryptoManager,
+                                client.getWriteThread(), client);
+                        messageQueue.put(keyExchangeMsg);
+                    } catch (Exception e) {
+                        ErrorHandler.handleCryptoError(
+                            client,
+                            "Failed to handle key exchange message",
+                            e,
+                            () -> AutoKeyExchange.handleIncomingKeyExchange(keyExchangeMsg, cryptoManager,
+                                    client.getWriteThread(), client)
+                        );
+                    }
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
             } catch (Exception e) {
-                LocalLogger.logSevere("Error handling incoming message: " + e.getMessage());
-                logger.severe("Error handling incoming message: " + e.getMessage());
+                ErrorHandler.handleSessionError(
+                    client,
+                    "Error processing incoming message",
+                    reconnect -> {
+                        if (reconnect) {
+                            try {
+                                client.initializeConnection(new Connection());
+                            } catch (Exception ex) {
+                                ErrorHandler.handleConnectionError(
+                                    client,
+                                    "Failed to reconnect: " + ex.getMessage(),
+                                    false,
+                                    null
+                                );
+                            }
+                        }
+                    }
+                );
             }
         }
         close();
@@ -110,9 +161,22 @@ public class ReadThread extends Thread {
         try {
             return inputStream.readObject();
         } catch (IOException | ClassNotFoundException e) {
-            LocalLogger.logSevere("Error reading from server: " + e.getMessage());
-            logger.severe("Error reading from server: " + e.getMessage());
-            e.printStackTrace();
+            ErrorHandler.handleConnectionError(
+                client,
+                "Lost connection to server",
+                true,
+                () -> {
+                    try {
+                        client.initializeConnection(new Connection());
+                    } catch (Exception ex) {
+                        ErrorHandler.handleFatalError(
+                            client,
+                            "Failed to reconnect",
+                            ex
+                        );
+                    }
+                }
+            );
             return null;
         }
     }
