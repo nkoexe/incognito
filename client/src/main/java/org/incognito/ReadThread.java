@@ -1,8 +1,6 @@
 package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
-import org.incognito.ChatMessage;
-import org.incognito.ChatSessionLogger;
 
 import javax.swing.*;
 import java.util.Base64;
@@ -51,7 +49,7 @@ public class ReadThread extends Thread {
             ErrorHandler.handleConnectionError(
                 client,
                 "Failed to initialize read stream",
-                ex,
+                true,
                 () -> {
                     try {
                         inputStream = new ObjectInputStream(socket.getInputStream());
@@ -186,7 +184,7 @@ public class ReadThread extends Thread {
             String userListStr = message.substring("USERLIST:".length());
             client.updateUsersList(userListStr);
         } else if (message.startsWith("CONNECT:")) {
-            String username = message.substring("CONNECT:".length());
+            // String username = message.substring("CONNECT:".length());
             // client.appendMessage(username + " has joined the chat");
         } else if (message.startsWith("DISCONNECT:")) {
             String username = message.substring("DISCONNECT:".length());

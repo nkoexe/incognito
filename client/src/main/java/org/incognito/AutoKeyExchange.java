@@ -4,7 +4,6 @@ import org.incognito.crypto.CryptoManager;
 import javax.crypto.SecretKey;
 import javax.swing.SwingUtilities;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 public class AutoKeyExchange {
@@ -47,7 +46,7 @@ public class AutoKeyExchange {
 
             } catch (Exception e) {
                 ErrorHandler.handleCryptoError(
-                    writeThread.client,
+                    writeThread.getClient(),
                     "Failed to initiate key exchange with " + targetUsername,
                     e,
                     () -> performKeyExchange(targetUsername, currentUsername, cryptoManager, writeThread)

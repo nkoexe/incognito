@@ -323,6 +323,7 @@ public class GUITest extends JFrame {
 
                 this.userName = inputName.trim();
 
+                final String sessionInputName = inputName;
                 // Send username to server
                 logger.info("Sending username: " + inputName);
                 writeThread.sendMessage("USERLIST:" + this.userName);
@@ -346,7 +347,7 @@ public class GUITest extends JFrame {
                             if (reconnect) {
                                 try {
                                     String newSessionId = generateSessionId();
-                                    writeThread.sendMessage("PRIVATE_CHAT:" + inputName + ":" + newSessionId);
+                                    writeThread.sendMessage("PRIVATE_CHAT:" + sessionInputName + ":" + newSessionId);
                                 } catch (Exception e) {
                                     ErrorHandler.handleFatalError(
                                         this,
@@ -776,15 +777,7 @@ public class GUITest extends JFrame {
         }
     }
   
-    public Socket getSocket() {
-        return socket;
-    }
-
     public CryptoManager getCryptoManager() {
         return cryptoManager;
-    }
-
-    public WriteThread getWriteThread() {
-        return writeThread;
     }
 }

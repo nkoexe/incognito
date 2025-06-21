@@ -2,7 +2,6 @@ package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
 import java.util.Base64;
-import org.incognito.ChatMessage;
 
 import java.io.ObjectOutputStream;
 import java.io.IOException;
@@ -105,7 +104,13 @@ public class WriteThread extends Thread {
                             client,
                             "Failed to encrypt message",
                             e,
-                            () -> messageQueue.put(message) // Retry sending the message
+                            () -> {
+                                try {
+                                    messageQueue.put(message); // Retry sending the message
+                                } catch (InterruptedException ie) {
+                                    Thread.currentThread().interrupt();
+                                }
+                            }
                         );
                         continue;
                     }
@@ -192,5 +197,9 @@ public class WriteThread extends Thread {
                 () -> sendKeyExchangeMessage(keyExchangeMessage) // Retry
             );
         }
+    }
+
+    public GUITest getClient() {
+        return client;
     }
 }
