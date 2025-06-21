@@ -39,14 +39,13 @@ public class Connection {
             this.clientHandlerPool = Executors.newCachedThreadPool();
             logger.fine("Initialized on port " + PORT);
         } catch (IOException e) {
-            logger.severe("Could not initialize socket");
-            e.printStackTrace();
+            ErrorHandler.handleServerError("Could not initialize socket", e, true);
         }
     }
 
     public void start() {
         if (this.socket == null) {
-            logger.severe("Socket is unavailable. Unable to start server.");
+            ErrorHandler.handleServerError("Socket is unavailable. Unable to start server.", null, true);
             return;
         }
 
@@ -66,12 +65,9 @@ public class Connection {
                     logger.info("Server socket closed, stopping listener.");
                     break;
                 }
-                logger.severe("Error while accepting client connection: " + e.getMessage());
-                e.printStackTrace();
-
+                ErrorHandler.handleServerError("Error while accepting client connection", e, false);
             } catch (Exception e) {
-                logger.severe("Unexpected error in server accept loop: " + e.getMessage());
-                e.printStackTrace();
+                ErrorHandler.handleServerError("Unexpected error in server accept loop", e, true);
             }
         }
     }
@@ -84,8 +80,7 @@ public class Connection {
                 this.socket.close();
             }
         } catch (IOException e) {
-            logger.severe("Error while closing server socket: " + e.getMessage());
-            e.printStackTrace();
+            ErrorHandler.handleServerError("Error while closing server socket", e, false);
         } finally {
             clientHandlerPool.shutdown();
             logger.info("Server stopped.");

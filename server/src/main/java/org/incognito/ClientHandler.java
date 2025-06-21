@@ -18,14 +18,12 @@ public class ClientHandler implements Runnable {
         this.socket = socket;
 
         try {
-            // Initialize streams - important to create output stream first to avoid
-            // deadlock
+            // Initialize streams - important to create output stream first to avoid deadlock
             outputStream = new ObjectOutputStream(socket.getOutputStream());
             outputStream.flush(); // Ensure the stream is flushed before reading
             inputStream = new ObjectInputStream(socket.getInputStream());
         } catch (IOException e) {
-            logger.severe("Error creating streams: " + e.getMessage());
-            e.printStackTrace();
+            ErrorHandler.handleServerError("Error creating streams for client " + socket.getRemoteSocketAddress(), e, false);
             closeConnection();
         }
     }
@@ -154,18 +152,12 @@ public class ClientHandler implements Runnable {
                         + " connection issue: "
                         + e.getMessage());
             } else {
-                logger.severe("IOException for client "
-                        + (username != null ? username : socket.getRemoteSocketAddress()) + ": "
-                        + e.getMessage());
-                e.printStackTrace();
+                ErrorHandler.handleServerError("IOException for client " + (username != null ? username : socket.getRemoteSocketAddress()), e, false);
             }
         } catch (ClassNotFoundException e) {
-            logger.severe("ClassNotFoundException from client "
-                    + (username != null ? username : socket.getRemoteSocketAddress()) + ": " + e.getMessage());
+            ErrorHandler.handleServerError("ClassNotFoundException from client " + (username != null ? username : socket.getRemoteSocketAddress()), e, false);
         } catch (Exception e) { // Catch-all for unexpected exceptions
-            logger.severe("Unexpected error in ClientHandler for "
-                    + (username != null ? username : socket.getRemoteSocketAddress()) + ": " + e.getMessage());
-            e.printStackTrace();
+            ErrorHandler.handleServerError("Unexpected error in ClientHandler for " + (username != null ? username : socket.getRemoteSocketAddress()), e, false);
         } finally {
             logger.fine("ClientHandler for " + (username != null ? username : "unknown user") + " is finishing.");
             closeConnection();
@@ -182,7 +174,7 @@ public class ClientHandler implements Runnable {
             outputStream.writeObject(message);
             outputStream.flush();
         } catch (IOException e) {
-            logger.severe("Error sending message to client: " + e.getMessage());
+            ErrorHandler.handleServerError("Error sending message to client " + (username != null ? username : "unknown"), e, false);
         }
     }
 
@@ -196,19 +188,19 @@ public class ClientHandler implements Runnable {
             if (inputStream != null)
                 inputStream.close();
         } catch (IOException e) {
-            logger.severe("Error closing input stream for " + username + ": " + e.getMessage());
+            ErrorHandler.handleServerError("Error closing input stream for " + username, e, false);
         }
         try {
             if (outputStream != null)
                 outputStream.close();
         } catch (IOException e) {
-            logger.severe("Error closing output stream for " + username + ": " + e.getMessage());
+            ErrorHandler.handleServerError("Error closing output stream for " + username, e, false);
         }
         try {
             if (socket != null && !socket.isClosed())
                 socket.close();
         } catch (IOException e) {
-            logger.severe("Error closing socket for " + username + ": " + e.getMessage());
+            ErrorHandler.handleServerError("Error closing socket for " + username, e, false);
         }
         logger.info("Connection closed and resources released for " + (username != null ? username : "client"));
     }
