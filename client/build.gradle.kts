@@ -14,6 +14,9 @@ dependencies {
     implementation("org.json:json:20230618")
     implementation("com.google.zxing:core:3.5.2")
     implementation("com.google.zxing:javase:3.5.2")
+    // Modern Look and Feel
+    implementation("com.formdev:flatlaf:3.2.5")
+    implementation("com.formdev:flatlaf-extras:3.2.5")
 }
 
 java {

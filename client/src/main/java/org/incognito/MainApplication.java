@@ -2,6 +2,7 @@ package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
 import org.incognito.GUI.*;
+import org.incognito.GUI.theme.ModernTheme;
 
 import javax.swing.*;
 import java.util.logging.Logger;
@@ -10,10 +11,10 @@ public class MainApplication {
     private static GUITest chatClient;
     private static Logger logger = Logger.getLogger(MainApplication.class.getName());
     private static UserSelectionPage.UserSelectionListener userSelectionListener;
-    private static CryptoManager cryptoManager;
-
-    public static void main(String[] args) {
+    private static CryptoManager cryptoManager;    public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
+            // Initialize modern theme first
+            ModernTheme.initialize();
             initializeApplication();
         });
     }
@@ -63,8 +64,8 @@ public class MainApplication {
                         if (chatClient != null) {
                             chatClient.dispose();
                         }
-                        ErrorHandler.handleConnectionError(userSelectionPage, 
-                            "Connection initialization interrupted", 
+                        ErrorHandler.handleConnectionError(userSelectionPage,
+                            "Connection initialization interrupted",
                             false,
                             null);
                     } catch (Exception e) {
@@ -81,8 +82,7 @@ public class MainApplication {
                 @Override
                 public void onManualKeyExchange(UserSelectionPage userSelectionPage) {
                     // Open the original MenuPage for manual key exchange
-                    MenuPage.MenuListener menuListener = new MenuPage.MenuListener() {
-                        @Override
+                    MenuPage.MenuListener menuListener = new MenuPage.MenuListener() {                        @Override
                         public void onKeysExchangedAndProceed(CryptoManager readyCryptoManager,
                                 MenuPage menuPageInstance) {
                             if (readyCryptoManager.getOtherUserPublicKeyBase64() == null) {
@@ -95,18 +95,30 @@ public class MainApplication {
                                         "Key Exchange Error",
                                         JOptionPane.ERROR_MESSAGE);
                                 return;
-                            }
+                            }                            // Store the current username before disposing menu page
+                            String currentUsername = userSelectionPage.getCurrentUsername();
 
                             if (menuPageInstance != null) {
                                 menuPageInstance.dispose();
-                            }                            // Create GUITest with the configured CryptoManager and user info
-                            chatClient = new GUITest(readyCryptoManager, userSelectionPage.getCurrentUsername(), userSelectionListener);
+                            }
+
+                            // For manual key exchange, dispose the user selection page normally
+                            // and create a fresh connection to avoid connection reuse complications
+                            userSelectionPage.disconnect();
+                            userSelectionPage.dispose();
+
+                            // Create GUITest with the configured CryptoManager and user info
+                            chatClient = new GUITest(readyCryptoManager, currentUsername, userSelectionListener);
                             chatClient.setVisible(true);
 
-                            // Initialize the connection
+                            // Create a fresh connection for manual key exchange
                             Connection connection = new Connection();
                             boolean connected = false;
-                            try {                                    connected = connection.connect();                                if (!connected) {
+                            try {
+                                connected = connection.connect();
+                                if (!connected) {
+                                    LocalLogger.logSevere("Impossible connecting to server.");
+                                    logger.severe("Impossible connecting to server.");
                                     chatClient.dispose();
                                     ErrorHandler.handleConnectionError(userSelectionPage,
                                         "Could not connect to server",
@@ -121,29 +133,40 @@ public class MainApplication {
                                     true,
                                     () -> initializeApplication());
                                 return;
-                            }
-
-                            try {
-                                chatClient.initializeConnection(connection);                                } catch (InterruptedException e) {
+                            }                            try {
+                                // Use the standard method for manual key exchange with fresh connection
+                                chatClient.initializeConnectionWithUsername(connection, currentUsername);
+                            } catch (InterruptedException e) {
                                 Thread.currentThread().interrupt();
                                 LocalLogger.logSevere("Connection initialization interrupted: " + e.getMessage());
                                 logger.severe("Connection initialization interrupted: " + e.getMessage());
                                 chatClient.dispose();
-                                handleConnectionError(userSelectionPage, "Connection initialization failed");                                } catch (Exception e) {
+                                handleConnectionError(null, "Connection initialization failed");                                } catch (Exception e) {
                                 LocalLogger.logSevere("Error while initializing connection: " + e.getMessage());
                                 logger.severe("Error while initializing connection: " + e.getMessage());
                                 chatClient.dispose();
-                                handleConnectionError(userSelectionPage, "Error while initializing connection: " + e.getMessage());
+                                handleConnectionError(null, "Error while initializing connection: " + e.getMessage());
                             }
-                        }
-
-                        @Override
+                        }                        @Override
                         public void onCancel(MenuPage menuPageInstance) {
                             if (menuPageInstance != null) {
                                 menuPageInstance.dispose();
                             }
-                            // Return to user selection page
-                            userSelectionPage.setVisible(true);
+                            // Return to user selection page only if it's still valid
+                            if (userSelectionPage != null && userSelectionPage.isDisplayable()) {
+                                userSelectionPage.setVisible(true);
+                            } else {
+                                // Create a new user selection page if the old one was disposed
+                                String currentUsername = userSelectionPage != null ?
+                                    userSelectionPage.getCurrentUsername() :
+                                    promptForUsername();
+                                if (currentUsername != null && !currentUsername.trim().isEmpty()) {
+                                    UserSelectionPage newPage = new UserSelectionPage(currentUsername, userSelectionListener);
+                                    newPage.setVisible(true);
+                                } else {
+                                    System.exit(0);
+                                }
+                            }
                         }
                     };
 

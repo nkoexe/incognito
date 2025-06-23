@@ -106,7 +106,13 @@ public class Connection {
         logger.info("User " + username + " registered from " + clientHandler.getSocket().getRemoteSocketAddress());
 
         broadcastUserList(); // Send updated user list to all clients
-        broadcast("CONNECT:" + username); // Notify all clients about the new user
+        
+        // Notify all OTHER clients about the new user (not the user themselves)
+        for (ClientHandler client : new ArrayList<>(usersClientMap.values())) {
+            if (client != clientHandler && client.getUsername() != null) {
+                client.send("CONNECT:" + username);
+            }
+        }
     }
 
     public void removeUser(String username, ClientHandler handler) {
@@ -193,18 +199,34 @@ public class Connection {
             ChatSessionLogger.logInfo("User " + requesterUsername + " is waiting for a peer for session " + sessionId);
             logger.info("User " + requesterUsername + " is waiting for a peer for session " + sessionId);
         }
-    }
-
-    public void forwardPrivateMessage(ClientHandler sender, ChatMessage message) {
+    }    public void forwardPrivateMessage(ClientHandler sender, ChatMessage message) {
         String senderUsername = sender.getUsername();
         if (senderUsername == null && sender.getSocket() != null) {
             senderUsername = "[NoUsername:" + sender.getSocket().getRemoteSocketAddress() + "]";
         } else if (senderUsername == null) {
             senderUsername = "[NoUsername:SocketInfoUnavailable]";
-        }
-
-        String sessionId = clientToSessionIdMap.get(sender);
+        }        String sessionId = clientToSessionIdMap.get(sender);
         if (sessionId == null) {
+            // Check if this is a manual key exchange user who doesn't need a traditional session
+            // For manual key exchange, broadcast the message to all other connected users
+            if (usersClientMap.containsValue(sender)) {
+                logger.info("Broadcasting message from manual key exchange user: " + senderUsername + " to " + (usersClientMap.size() - 1) + " other users");
+                ChatSessionLogger.logInfo("Manual key exchange message from " + senderUsername + ": " + message.getEncryptedContent());
+                
+                // Broadcast the message to all other connected users (excluding the sender)
+                int messagesSent = 0;
+                for (ClientHandler client : new ArrayList<>(usersClientMap.values())) {
+                    if (client != sender && client.getUsername() != null) {
+                        client.send(message);
+                        messagesSent++;
+                        logger.info("Forwarded manual key exchange message from " + senderUsername + " to " + client.getUsername());
+                    }
+                }
+                logger.info("Total messages sent: " + messagesSent);
+                return;
+            }
+            
+            logger.warning("User " + senderUsername + " not found in usersClientMap, denying message");
             sender.send("ERROR:You are not in an active private chat session.");
             ChatSessionLogger
                     .logWarning(

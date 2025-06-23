@@ -36,6 +36,15 @@ public class CryptoManager {
         this.aesSessionKey = key;
     }
 
+    /**
+     * Reset session state for a new chat session.
+     * Clears AES session key and other user's public key.
+     */
+    public void resetSession() {
+        this.aesSessionKey = null;
+        this.otherUserPublicKey = null;
+    }
+
     public PublicKey decodePublicKey(String base64) throws Exception {
         byte[] decoded = Base64.getDecoder().decode(base64);
         X509EncodedKeySpec spec = new X509EncodedKeySpec(decoded);
@@ -119,18 +128,11 @@ public class CryptoManager {
         byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
 
         return new String(decryptedBytes, StandardCharsets.UTF_8);
-    }
-
-    public SecretKey getAesSessionKey() {
+    }    public SecretKey getAesSessionKey() {
+        return aesSessionKey; // Return null if not set
+    }    public String encrypt(String plainText) throws Exception {
         if (aesSessionKey == null) {
-            throw new IllegalStateException("AES session key has not been set.");
-        }
-        return aesSessionKey;
-    }
-
-    public String encrypt(String plainText) throws Exception {
-        if (aesSessionKey == null) {
-            throw new IllegalStateException("AES session key has not been set.");
+            throw new IllegalStateException("AES session key has not been set. Cannot encrypt message.");
         }
         byte[] encrypted = encryptAES(plainText);
         return Base64.getEncoder().encodeToString(encrypted);
@@ -138,7 +140,7 @@ public class CryptoManager {
 
     public String decrypt(String encryptedText) throws Exception {
         if (aesSessionKey == null) {
-            throw new IllegalStateException("AES session key has not been set.");
+            throw new IllegalStateException("AES session key has not been set. Cannot decrypt message.");
         }
         byte[] decoded = Base64.getDecoder().decode(encryptedText);
         return decryptAES(decoded);

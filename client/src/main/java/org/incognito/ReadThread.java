@@ -97,21 +97,19 @@ public class ReadThread extends Thread {
                         processSystemMessage(msgStr);
                     } else {
                         client.appendMessage(msgStr);
-                    }
-                } else if (obj instanceof ChatMessage chatMsg) {
-                    try {
-                        byte[] encrypted = Base64.getDecoder().decode(chatMsg.getEncryptedContent());
-                        String decrypted = cryptoManager.decryptAES(encrypted);
+                    }                } else if (obj instanceof ChatMessage chatMsg) {
+                    logger.info("Received ChatMessage from: " + chatMsg.getSender());
+                    byte[] encrypted = Base64.getDecoder().decode(chatMsg.getEncryptedContent());
+                    String decrypted = cryptoManager.decryptAES(encrypted);
+
+                    // For manual key exchange flow, don't display our own messages since they're already shown locally
+                    if (!chatMsg.getSender().equals(client.getUserName())) {
                         client.appendMessage(chatMsg.getSender() + ": " + decrypted);
-                        messageQueue.put(chatMsg);
-                    } catch (Exception e) {
-                        ErrorHandler.handleCryptoError(
-                            client,
-                            "Failed to decrypt message from " + chatMsg.getSender(),
-                            e,
-                            null
-                        );
+                        logger.info("Displayed message from " + chatMsg.getSender() + ": " + decrypted);
+                    } else {
+                        logger.info("Ignoring own message from " + chatMsg.getSender());
                     }
+                    messageQueue.put(chatMsg);
                 } else if (obj instanceof KeyExchangeMessage keyExchangeMsg) {
                     try {
                         // Handle automatic key exchange
@@ -191,7 +189,8 @@ public class ReadThread extends Thread {
             SwingUtilities.invokeLater(() -> {
                 client.removeUser(username);
             });
-            client.appendMessage(username + " has left the chat");
+            // Hidden: Leave notification - can be confusing in 1-to-1 chat context
+            // client.appendMessage(username + " has left the chat");
         } else if (message.startsWith("SERVER:")) {
             String serverMessage = message.substring("SERVER:".length());
             client.appendMessage("[Server] " + serverMessage);
