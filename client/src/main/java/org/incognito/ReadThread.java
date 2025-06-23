@@ -157,6 +157,11 @@ public class ReadThread extends Thread {
         try {
             return inputStream.readObject();
         } catch (IOException | ClassNotFoundException e) {
+            // Se il thread è stato interrotto, ignora silenziosamente l'errore di socket chiusa
+            if (Thread.currentThread().isInterrupted() || (e instanceof IOException && socket != null && socket.isClosed())) {
+                logger.info("ReadThread interrotto o socket chiusa: chiusura silenziosa.");
+                return null;
+            }
             ErrorHandler.handleConnectionError(
                 client,
                 "Lost connection to server",

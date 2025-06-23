@@ -190,7 +190,7 @@ public class AutoKeyExchange {
         }
     }
 
-    private static void cleanupExchange(String user1, String user2) {
+    public static void cleanupExchange(String user1, String user2) {
         String exchangeKey = user1.compareTo(user2) < 0
                 ? user1 + "-" + user2
                 : user2 + "-" + user1;

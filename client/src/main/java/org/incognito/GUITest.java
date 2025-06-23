@@ -4,6 +4,7 @@ import org.incognito.crypto.CryptoManager;
 import org.incognito.GUI.UserSelectionPage;
 import org.incognito.GUI.theme.ModernTheme;
 
+import javax.crypto.SecretKey;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
@@ -54,7 +55,8 @@ public class GUITest extends JFrame {
      */
     private String currentChatPartner;
 
-    public GUITest(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {        this.cryptoManager = cryptoManager;        this.currentUsername = username;
+    public GUITest(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {        this.cryptoManager = cryptoManager;
+        this.currentUsername = username;
         this.userSelectionListener = listener;
         // Set up the UI components        // Check if the CryptoManager already has an AES session key (from manual key exchange)
         try {
@@ -412,27 +414,36 @@ public class GUITest extends JFrame {
                     logger.info("Sending message PRIVATE_CHAT with sessionId: " + sessionId);
                 } else {
                     ErrorHandler.handleSessionError(
-                        this,
-                        "Failed to generate session ID",
-                        reconnect -> {
-                            if (reconnect) {
-                                try {
-                                    String newSessionId = generateSessionId();
-                                    writeThread.sendMessage("PRIVATE_CHAT:" + sessionInputName + ":" + newSessionId);
-                                } catch (Exception e) {
-                                    ErrorHandler.handleFatalError(
-                                        this,
-                                        "Failed to generate session ID after retry",
-                                        e
-                                    );
+                            this,
+                            "Failed to generate session ID",
+                            reconnect -> {
+                                if (reconnect) {
+                                    try {
+                                        String newSessionId = generateSessionId();
+                                        writeThread.sendMessage("PRIVATE_CHAT:" + sessionInputName + ":" + newSessionId);
+                                    } catch (Exception e) {
+                                        ErrorHandler.handleFatalError(
+                                                this,
+                                                "Failed to generate session ID after retry",
+                                                e
+                                        );
+                                    }
+                                } else {
+                                    disconnect();
                                 }
-                            } else {
-                                disconnect();
                             }
-                        }
                     );
                     return;
                 }
+            } catch (Exception e) {
+                ErrorHandler.handleConnectionError(
+                    this,
+                    "Failed to initialize connection: " + e.getMessage(),
+                    false,
+                    null
+                );
+                return;
+            }
 
             try {
                 Object response = loginQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
@@ -578,14 +589,14 @@ public class GUITest extends JFrame {
         SwingUtilities.invokeLater(() -> {
             chatArea.append(message + "\n");
         });
-    }    private void disconnect() {        try {
-            // Log disconnection attempt
+    }    private void disconnect() {
+        try {
             logger.info("Initiating disconnection for user: " + userName);
-            
+
             // Clean up key exchange tracking if we have a chat partner
             if (currentChatPartner != null && userName != null) {
                 AutoKeyExchange.cleanupExchange(userName, currentChatPartner);
-                currentChatPartner = null; // Clear the partner reference
+                currentChatPartner = null;
             }
 
             // Interrupt and cleanup threads
@@ -593,7 +604,6 @@ public class GUITest extends JFrame {
                 readThread.interrupt();
                 readThread = null;
             }
-
             if (writeThread != null) {
                 writeThread.interrupt();
                 writeThread = null;
@@ -602,9 +612,10 @@ public class GUITest extends JFrame {
             // Close connection
             if (connection != null) {
                 try {
-                    // Notify server about disconnection if possible
                     if (connection.getSocket() != null && !connection.getSocket().isClosed()) {
-                        writeThread.sendMessage("DISCONNECT:" + userName);
+                        // Non tentare di inviare messaggi se i thread sono già interrotti
+                        // e la socket è chiusa
+                        // writeThread.sendMessage("DISCONNECT:" + userName); // Rimosso per evitare errori
                     }
                 } catch (Exception ex) {
                     logger.warning("Could not send disconnect message: " + ex.getMessage());
@@ -612,10 +623,9 @@ public class GUITest extends JFrame {
                     connection.close();
                     connection = null;
                 }
-            }            // Update UI state
+            }
+            // Update UI state
             SwingUtilities.invokeLater(() -> {
-                // Hidden: Technical disconnection message - not needed for user
-                // chatArea.append("[System] Disconnected from server.\n");
                 isSessionActive = false;
                 if (messageField != null) {
                     messageField.setEnabled(false);
@@ -631,11 +641,9 @@ public class GUITest extends JFrame {
                     usersModel.clear();
                 }
             });
-            
-            // Log successful disconnection
+
             logger.info("Successfully disconnected from server");
             ChatSessionLogger.logInfo("Chat session ended - disconnected from server");
-            
         } catch (Exception e) {
             ErrorHandler.showWarning(
                 this,
@@ -831,3 +839,4 @@ public class GUITest extends JFrame {
         return cryptoManager;
     }
 }
+
