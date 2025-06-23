@@ -4,34 +4,9 @@ import javax.swing.*;
 import java.awt.*;
 import java.util.logging.Logger;
 import java.util.function.Consumer;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class ErrorHandler {
     private static final Logger logger = Logger.getLogger(ErrorHandler.class.getName());
-    private static final int MAX_RETRY_ATTEMPTS = 3;
-    private static final long RETRY_TIMEOUT_MS = 5000; // 5 seconds timeout between retries
-    private static final Map<String, RetryContext> retryContexts = new ConcurrentHashMap<>();
-
-    private static class RetryContext {
-        int attempts;
-        long lastAttemptTime;
-
-        RetryContext() {
-            this.attempts = 0;
-            this.lastAttemptTime = 0;
-        }
-
-        boolean canRetry() {
-            return attempts < MAX_RETRY_ATTEMPTS && 
-                   (System.currentTimeMillis() - lastAttemptTime) >= RETRY_TIMEOUT_MS;
-        }
-
-        void incrementAttempt() {
-            attempts++;
-            lastAttemptTime = System.currentTimeMillis();
-        }
-    }
 
     // --- Helper for logging errors to all loggers ---
     private static void logError(String prefix, String message, Throwable error) {
@@ -67,29 +42,18 @@ public class ErrorHandler {
      * @param retryAction The action to run on retry
      */
     public static void handleConnectionError(Component parentComponent, String message, boolean canRetry, Runnable retryAction) {
-        String contextKey = Thread.currentThread().getName();
-        RetryContext context = retryContexts.computeIfAbsent(contextKey, k -> new RetryContext());
         logError("Connection error: ", message, null);
-        if (!context.canRetry()) {
-            handleFatalError(parentComponent, "Maximum retry attempts reached or too frequent retries. " + message, new Exception("Retry limits exceeded"));
-            return;
-        }
-        String[] options = canRetry ? new String[]{"Retry", "Exit"} : new String[]{"Exit"};
-        int choice = showOptionDialog(
+        String[] options = new String[]{"Exit"};
+        showOptionDialog(
             parentComponent,
-            message + "\n\nDo you want to retry or exit?" + (canRetry ? "\nAttempt " + (context.attempts + 1) + " of " + MAX_RETRY_ATTEMPTS : ""),
+            message,
             "Connection Error",
-            canRetry ? JOptionPane.YES_NO_OPTION : JOptionPane.DEFAULT_OPTION,
+            JOptionPane.DEFAULT_OPTION,
             JOptionPane.ERROR_MESSAGE,
             options,
             options[0]
         );
-        if (canRetry && choice == 0 && retryAction != null) {
-            context.incrementAttempt();
-            retryAction.run();
-        } else {
-            System.exit(1);
-        }
+        System.exit(1);
     }
 
     /**
@@ -110,8 +74,16 @@ public class ErrorHandler {
         FATAL,      // No recovery possible, must exit
         SEVERE,     // Recovery possible but risky
         MODERATE,   // Recovery likely to succeed
-        MILD       // Recovery should be straightforward
-    }
+        MILD        // Recovery should be straightforward
+        }
+
+        
+        public enum CryptoErrorType {
+         UNKNOWN_ERROR,
+         KEY_GENERATION_ERROR,
+         KEY_EXCHANGE_ERROR
+        }
+
 
     /**
      * Handles initialization errors with context-aware recovery options
@@ -179,22 +151,6 @@ public class ErrorHandler {
     }
 
     /**
-     * Resets the retry counter. Should be called when a successful connection is established.
-     */
-    public static void resetRetryCount() {
-        String contextKey = Thread.currentThread().getName();
-        retryContexts.remove(contextKey);
-    }
-
-    public enum CryptoErrorType {
-        KEY_GENERATION_ERROR,
-        ENCRYPTION_ERROR,
-        DECRYPTION_ERROR,
-        KEY_EXCHANGE_ERROR,
-        UNKNOWN_ERROR
-    }
-
-    /**
      * Handles encryption/decryption errors with improved context and specific recovery options
      */
     public static void handleCryptoError(Component parentComponent, String message, Throwable error, CryptoErrorType errorType, Runnable retryAction, Runnable regenerateKeyAction) {
@@ -229,7 +185,6 @@ public class ErrorHandler {
     public static void handleCryptoError(Component parentComponent, String message, Throwable error, Runnable retryAction) {
         handleCryptoError(parentComponent, message, error, CryptoErrorType.UNKNOWN_ERROR, retryAction, null);
     }
-
     /**
      * Handles session-related errors
      */
