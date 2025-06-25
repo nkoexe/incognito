@@ -82,7 +82,8 @@ public class ClientHandler implements Runnable {
             logger.info("User " + username + " successfully authenticated. Ready for messages.");
 
             // Main loop for handling messages
-            label: while (!Thread.currentThread().isInterrupted() && !socket.isClosed()) {
+            label:
+            while (!Thread.currentThread().isInterrupted() && !socket.isClosed()) {
                 Object obj = inputStream.readObject();
 
                 switch (obj) {
@@ -104,7 +105,7 @@ public class ClientHandler implements Runnable {
                                 logger.warning("User " + username + " sent invalid PRIVATE_CHAT command: " + command);
                             }
                         } else if (command.equalsIgnoreCase("REQUEST_USERLIST")) { // Comando esplicito per richiedere
-                                                                                   // la lista
+                            // la lista
                             server.broadcastUserList(); // Invia solo a questo client? O a tutti?
 
                             // Per ora, broadcastUserList invia a tutti.

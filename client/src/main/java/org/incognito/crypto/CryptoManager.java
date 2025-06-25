@@ -128,9 +128,13 @@ public class CryptoManager {
         byte[] decryptedBytes = cipher.doFinal(encryptedBytes);
 
         return new String(decryptedBytes, StandardCharsets.UTF_8);
-    }    public SecretKey getAesSessionKey() {
+    }
+
+    public SecretKey getAesSessionKey() {
         return aesSessionKey; // Return null if not set
-    }    public String encrypt(String plainText) throws Exception {
+    }
+
+    public String encrypt(String plainText) throws Exception {
         if (aesSessionKey == null) {
             throw new IllegalStateException("AES session key has not been set. Cannot encrypt message.");
         }

@@ -23,35 +23,36 @@ public class ErrorHandler {
     // --- Helper for showing option dialogs ---
     private static int showOptionDialog(Component parent, String message, String title, int optionType, int messageType, String[] options, String defaultOption) {
         return JOptionPane.showOptionDialog(
-            parent,
-            message,
-            title,
-            optionType,
-            messageType,
-            null,
-            options,
-            defaultOption
+                parent,
+                message,
+                title,
+                optionType,
+                messageType,
+                null,
+                options,
+                defaultOption
         );
     }
 
     /**
      * Handles connection-related errors consistently
+     *
      * @param parentComponent The parent UI component
-     * @param message The error message
-     * @param canRetry Whether retry is allowed
-     * @param retryAction The action to run on retry
+     * @param message         The error message
+     * @param canRetry        Whether retry is allowed
+     * @param retryAction     The action to run on retry
      */
     public static void handleConnectionError(Component parentComponent, String message, boolean canRetry, Runnable retryAction) {
         logError("Connection error: ", message, null);
         String[] options = new String[]{"Exit"};
         showOptionDialog(
-            parentComponent,
-            message,
-            "Connection Error",
-            JOptionPane.DEFAULT_OPTION,
-            JOptionPane.ERROR_MESSAGE,
-            options,
-            options[0]
+                parentComponent,
+                message,
+                "Connection Error",
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.ERROR_MESSAGE,
+                options,
+                options[0]
         );
         System.exit(1);
     }
@@ -62,10 +63,10 @@ public class ErrorHandler {
     public static void handleFatalError(Component parentComponent, String message, Throwable error) {
         logError("Fatal error: ", message, error);
         JOptionPane.showMessageDialog(
-            parentComponent,
-            message + "\n\nError details: " + (error != null ? error.getMessage() : "Unknown error"),
-            "Fatal Error",
-            JOptionPane.ERROR_MESSAGE
+                parentComponent,
+                message + "\n\nError details: " + (error != null ? error.getMessage() : "Unknown error"),
+                "Fatal Error",
+                JOptionPane.ERROR_MESSAGE
         );
         System.exit(1);
     }
@@ -75,14 +76,14 @@ public class ErrorHandler {
         SEVERE,     // Recovery possible but risky
         MODERATE,   // Recovery likely to succeed
         MILD        // Recovery should be straightforward
-        }
+    }
 
-        
-        public enum CryptoErrorType {
-         UNKNOWN_ERROR,
-         KEY_GENERATION_ERROR,
-         KEY_EXCHANGE_ERROR
-        }
+
+    public enum CryptoErrorType {
+        UNKNOWN_ERROR,
+        KEY_GENERATION_ERROR,
+        KEY_EXCHANGE_ERROR
+    }
 
 
     /**
@@ -111,13 +112,13 @@ public class ErrorHandler {
                 defaultOption = "Try Recovery";
         }
         int choice = showOptionDialog(
-            parentComponent,
-            message + "\n\nError details: " + (error != null ? error.getMessage() : "Unknown error") + "\n\nHow would you like to proceed?",
-            "Initialization Error",
-            options.length > 2 ? JOptionPane.YES_NO_CANCEL_OPTION : JOptionPane.YES_NO_OPTION,
-            JOptionPane.ERROR_MESSAGE,
-            options,
-            defaultOption
+                parentComponent,
+                message + "\n\nError details: " + (error != null ? error.getMessage() : "Unknown error") + "\n\nHow would you like to proceed?",
+                "Initialization Error",
+                options.length > 2 ? JOptionPane.YES_NO_CANCEL_OPTION : JOptionPane.YES_NO_OPTION,
+                JOptionPane.ERROR_MESSAGE,
+                options,
+                defaultOption
         );
         if (severity == InitErrorSeverity.FATAL || (choice == options.length - 1 && severity == InitErrorSeverity.SEVERE)) {
             System.exit(1);
@@ -143,10 +144,10 @@ public class ErrorHandler {
         LocalLogger.logWarning("Warning: " + message);
         String fullMessage = message + (suggestion != null ? "\n\nSuggestion: " + suggestion : "");
         JOptionPane.showMessageDialog(
-            parentComponent,
-            fullMessage,
-            "Warning",
-            JOptionPane.WARNING_MESSAGE
+                parentComponent,
+                fullMessage,
+                "Warning",
+                JOptionPane.WARNING_MESSAGE
         );
     }
 
@@ -162,13 +163,13 @@ public class ErrorHandler {
             options = new String[]{"Retry", "Cancel"};
         }
         int choice = showOptionDialog(
-            parentComponent,
-            "Encryption operation failed: " + message + "\n\nError details: " + (error != null ? error.getMessage() : "Unknown error") + "\n\nHow would you like to proceed?",
-            "Encryption Error",
-            JOptionPane.YES_NO_CANCEL_OPTION,
-            JOptionPane.ERROR_MESSAGE,
-            options,
-            options[0]
+                parentComponent,
+                "Encryption operation failed: " + message + "\n\nError details: " + (error != null ? error.getMessage() : "Unknown error") + "\n\nHow would you like to proceed?",
+                "Encryption Error",
+                JOptionPane.YES_NO_CANCEL_OPTION,
+                JOptionPane.ERROR_MESSAGE,
+                options,
+                options[0]
         );
         if (choice == 0) {
             if (options.length == 3 && regenerateKeyAction != null) {
@@ -185,6 +186,7 @@ public class ErrorHandler {
     public static void handleCryptoError(Component parentComponent, String message, Throwable error, Runnable retryAction) {
         handleCryptoError(parentComponent, message, error, CryptoErrorType.UNKNOWN_ERROR, retryAction, null);
     }
+
     /**
      * Handles session-related errors
      */
@@ -192,13 +194,13 @@ public class ErrorHandler {
         logger.warning("Session error: " + message);
         LocalLogger.logWarning("Session error: " + message);
         int choice = showOptionDialog(
-            parentComponent,
-            message + "\n\nWould you like to try reconnecting?",
-            "Session Error",
-            JOptionPane.YES_NO_OPTION,
-            JOptionPane.WARNING_MESSAGE,
-            new String[]{"Reconnect", "Close Session"},
-            "Reconnect"
+                parentComponent,
+                message + "\n\nWould you like to try reconnecting?",
+                "Session Error",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE,
+                new String[]{"Reconnect", "Close Session"},
+                "Reconnect"
         );
         if (reconnectAction != null) {
             reconnectAction.accept(choice == 0);

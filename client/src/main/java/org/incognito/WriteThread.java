@@ -1,6 +1,7 @@
 package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
+
 import java.util.Base64;
 
 import java.io.ObjectOutputStream;
@@ -29,20 +30,20 @@ public class WriteThread extends Thread {
             outputStream = new ObjectOutputStream(socket.getOutputStream());
         } catch (IOException e) {
             ErrorHandler.handleConnectionError(
-                client,
-                "Failed to initialize message sending",
-                true,
-                () -> {
-                    try {
-                        outputStream = new ObjectOutputStream(socket.getOutputStream());
-                    } catch (IOException retryEx) {
-                        ErrorHandler.handleFatalError(
-                            client,
-                            "Failed to initialize message sending after retry",
-                            retryEx
-                        );
+                    client,
+                    "Failed to initialize message sending",
+                    true,
+                    () -> {
+                        try {
+                            outputStream = new ObjectOutputStream(socket.getOutputStream());
+                        } catch (IOException retryEx) {
+                            ErrorHandler.handleFatalError(
+                                    client,
+                                    "Failed to initialize message sending after retry",
+                                    retryEx
+                            );
+                        }
                     }
-                }
             );
         }
     }
@@ -55,21 +56,21 @@ public class WriteThread extends Thread {
 
                 if (outputStream == null) {
                     ErrorHandler.handleConnectionError(
-                        client,
-                        "Cannot send message - connection lost",
-                        true,
-                        () -> {
-                            try {
-                                client.initializeConnection(new Connection());
-                                messageQueue.put(message); // Retry sending the message
-                            } catch (Exception ex) {
-                                ErrorHandler.handleFatalError(
-                                    client,
-                                    "Failed to reconnect",
-                                    ex
-                                );
+                            client,
+                            "Cannot send message - connection lost",
+                            true,
+                            () -> {
+                                try {
+                                    client.initializeConnection(new Connection());
+                                    messageQueue.put(message); // Retry sending the message
+                                } catch (Exception ex) {
+                                    ErrorHandler.handleFatalError(
+                                            client,
+                                            "Failed to reconnect",
+                                            ex
+                                    );
+                                }
                             }
-                        }
                     );
                     continue;
                 }
@@ -81,15 +82,15 @@ public class WriteThread extends Thread {
                 } else {
                     if (cryptoManager.getAesSessionKey() == null) {
                         ErrorHandler.handleCryptoError(
-                            client,
-                            "Cannot send encrypted message - no session key available",
-                            new Exception("Missing AES session key"),
-                            () -> AutoKeyExchange.performKeyExchange(
-                                client.getUserName(),
-                                message,
-                                cryptoManager,
-                                this
-                            )
+                                client,
+                                "Cannot send encrypted message - no session key available",
+                                new Exception("Missing AES session key"),
+                                () -> AutoKeyExchange.performKeyExchange(
+                                        client.getUserName(),
+                                        message,
+                                        cryptoManager,
+                                        this
+                                )
                         );
                         continue;
                     }
@@ -101,16 +102,16 @@ public class WriteThread extends Thread {
                         outputStream.writeObject(chatMsg);
                     } catch (Exception e) {
                         ErrorHandler.handleCryptoError(
-                            client,
-                            "Failed to encrypt message",
-                            e,
-                            () -> {
-                                try {
-                                    messageQueue.put(message); // Retry sending the message
-                                } catch (InterruptedException ie) {
-                                    Thread.currentThread().interrupt();
+                                client,
+                                "Failed to encrypt message",
+                                e,
+                                () -> {
+                                    try {
+                                        messageQueue.put(message); // Retry sending the message
+                                    } catch (InterruptedException ie) {
+                                        Thread.currentThread().interrupt();
+                                    }
                                 }
-                            }
                         );
                         continue;
                     }
@@ -123,21 +124,21 @@ public class WriteThread extends Thread {
                 break;
             } catch (Exception ex) {
                 ErrorHandler.handleSessionError(
-                    client,
-                    "Error sending message: " + ex.getMessage(),
-                    reconnect -> {
-                        if (reconnect) {
-                            try {
-                                client.initializeConnection(new Connection());
-                            } catch (Exception e) {
-                                ErrorHandler.handleFatalError(
-                                    client,
-                                    "Failed to reconnect",
-                                    e
-                                );
+                        client,
+                        "Error sending message: " + ex.getMessage(),
+                        reconnect -> {
+                            if (reconnect) {
+                                try {
+                                    client.initializeConnection(new Connection());
+                                } catch (Exception e) {
+                                    ErrorHandler.handleFatalError(
+                                            client,
+                                            "Failed to reconnect",
+                                            e
+                                    );
+                                }
                             }
                         }
-                    }
                 );
             }
         }
@@ -167,21 +168,21 @@ public class WriteThread extends Thread {
         try {
             if (outputStream == null) {
                 ErrorHandler.handleConnectionError(
-                    client,
-                    "Cannot send key exchange - connection lost",
-                    true,
-                    () -> {
-                        try {
-                            client.initializeConnection(new Connection());
-                            sendKeyExchangeMessage(keyExchangeMessage); // Retry
-                        } catch (Exception ex) {
-                            ErrorHandler.handleFatalError(
-                                client,
-                                "Failed to reconnect for key exchange",
-                                ex
-                            );
+                        client,
+                        "Cannot send key exchange - connection lost",
+                        true,
+                        () -> {
+                            try {
+                                client.initializeConnection(new Connection());
+                                sendKeyExchangeMessage(keyExchangeMessage); // Retry
+                            } catch (Exception ex) {
+                                ErrorHandler.handleFatalError(
+                                        client,
+                                        "Failed to reconnect for key exchange",
+                                        ex
+                                );
+                            }
                         }
-                    }
                 );
                 return;
             }
@@ -191,10 +192,10 @@ public class WriteThread extends Thread {
             outputStream.flush();
         } catch (Exception e) {
             ErrorHandler.handleCryptoError(
-                client,
-                "Failed to send key exchange message",
-                e,
-                () -> sendKeyExchangeMessage(keyExchangeMessage) // Retry
+                    client,
+                    "Failed to send key exchange message",
+                    e,
+                    () -> sendKeyExchangeMessage(keyExchangeMessage) // Retry
             );
         }
     }

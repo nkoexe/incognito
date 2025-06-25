@@ -28,7 +28,7 @@ public class ReadThread extends Thread {
     }
 
     public ReadThread(Socket socket, GUITest client, CryptoManager cryptoManager,
-            BlockingQueue<String> loginResponseQueue) {
+                      BlockingQueue<String> loginResponseQueue) {
         this.socket = socket;
         this.client = client;
         this.cryptoManager = cryptoManager;
@@ -37,30 +37,30 @@ public class ReadThread extends Thread {
         try {
             if (socket.isClosed()) {
                 ErrorHandler.handleConnectionError(
-                    client,
-                    "Cannot create input stream - socket is closed",
-                    false,
-                    null
+                        client,
+                        "Cannot create input stream - socket is closed",
+                        false,
+                        null
                 );
                 return;
             }
             inputStream = new ObjectInputStream(socket.getInputStream());
         } catch (IOException ex) {
             ErrorHandler.handleConnectionError(
-                client,
-                "Failed to initialize read stream",
-                true,
-                () -> {
-                    try {
-                        inputStream = new ObjectInputStream(socket.getInputStream());
-                    } catch (IOException retryEx) {
-                        ErrorHandler.handleFatalError(
-                            client,
-                            "Failed to initialize read stream after retry",
-                            retryEx
-                        );
+                    client,
+                    "Failed to initialize read stream",
+                    true,
+                    () -> {
+                        try {
+                            inputStream = new ObjectInputStream(socket.getInputStream());
+                        } catch (IOException retryEx) {
+                            ErrorHandler.handleFatalError(
+                                    client,
+                                    "Failed to initialize read stream after retry",
+                                    retryEx
+                            );
+                        }
                     }
-                }
             );
         }
     }
@@ -97,7 +97,8 @@ public class ReadThread extends Thread {
                         processSystemMessage(msgStr);
                     } else {
                         client.appendMessage(msgStr);
-                    }                } else if (obj instanceof ChatMessage chatMsg) {
+                    }
+                } else if (obj instanceof ChatMessage chatMsg) {
                     logger.info("Received ChatMessage from: " + chatMsg.getSender());
                     byte[] encrypted = Base64.getDecoder().decode(chatMsg.getEncryptedContent());
                     String decrypted = cryptoManager.decryptAES(encrypted);
@@ -118,11 +119,11 @@ public class ReadThread extends Thread {
                         messageQueue.put(keyExchangeMsg);
                     } catch (Exception e) {
                         ErrorHandler.handleCryptoError(
-                            client,
-                            "Failed to handle key exchange message",
-                            e,
-                            () -> AutoKeyExchange.handleIncomingKeyExchange(keyExchangeMsg, cryptoManager,
-                                    client.getWriteThread(), client)
+                                client,
+                                "Failed to handle key exchange message",
+                                e,
+                                () -> AutoKeyExchange.handleIncomingKeyExchange(keyExchangeMsg, cryptoManager,
+                                        client.getWriteThread(), client)
                         );
                     }
                 }
@@ -131,22 +132,22 @@ public class ReadThread extends Thread {
                 break;
             } catch (Exception e) {
                 ErrorHandler.handleSessionError(
-                    client,
-                    "Error processing incoming message",
-                    reconnect -> {
-                        if (reconnect) {
-                            try {
-                                client.initializeConnection(new Connection());
-                            } catch (Exception ex) {
-                                ErrorHandler.handleConnectionError(
-                                    client,
-                                    "Failed to reconnect: " + ex.getMessage(),
-                                    false,
-                                    null
-                                );
+                        client,
+                        "Error processing incoming message",
+                        reconnect -> {
+                            if (reconnect) {
+                                try {
+                                    client.initializeConnection(new Connection());
+                                } catch (Exception ex) {
+                                    ErrorHandler.handleConnectionError(
+                                            client,
+                                            "Failed to reconnect: " + ex.getMessage(),
+                                            false,
+                                            null
+                                    );
+                                }
                             }
                         }
-                    }
                 );
             }
         }
@@ -163,20 +164,20 @@ public class ReadThread extends Thread {
                 return null;
             }
             ErrorHandler.handleConnectionError(
-                client,
-                "Lost connection to server",
-                true,
-                () -> {
-                    try {
-                        client.initializeConnection(new Connection());
-                    } catch (Exception ex) {
-                        ErrorHandler.handleFatalError(
-                            client,
-                            "Failed to reconnect",
-                            ex
-                        );
+                    client,
+                    "Lost connection to server",
+                    true,
+                    () -> {
+                        try {
+                            client.initializeConnection(new Connection());
+                        } catch (Exception ex) {
+                            ErrorHandler.handleFatalError(
+                                    client,
+                                    "Failed to reconnect",
+                                    ex
+                            );
+                        }
                     }
-                }
             );
             return null;
         }

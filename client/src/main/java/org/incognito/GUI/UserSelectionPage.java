@@ -2,6 +2,7 @@ package org.incognito.GUI;
 
 import org.incognito.Connection;
 import org.incognito.GUI.theme.ModernTheme;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
@@ -26,19 +27,21 @@ public class UserSelectionPage extends JFrame {
         void onManualKeyExchange(UserSelectionPage userSelectionPage);
 
         void onCancel(UserSelectionPage userSelectionPage);
-    }    public UserSelectionPage(String username, UserSelectionListener listener) {
+    }
+
+    public UserSelectionPage(String username, UserSelectionListener listener) {
         this.currentUsername = username;
         this.listener = listener;
-        
+
         setTitle("Select Contact - " + username);
         setSize(500, 450);
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
-        
+
         // Set modern background
         getContentPane().setBackground(ModernTheme.BACKGROUND_PRIMARY);
-        
+
         addWindowListener(new java.awt.event.WindowAdapter() {
             @Override
             public void windowClosing(java.awt.event.WindowEvent e) {
@@ -50,14 +53,16 @@ public class UserSelectionPage extends JFrame {
 
         initComponents();
         connectToServerAndLoadUsers();
-    }    private void initComponents() {
+    }
+
+    private void initComponents() {
         // Header
         JLabel headerLabel = ModernTheme.createLabel(
-                "<html><center><b>Select a contact to start chatting</b><br/><span style='color: #8E8E93;'>Choose someone to begin a secure conversation</span></center></html>", 
+                "<html><center><b>Select a contact to start chatting</b><br/><span style='color: #8E8E93;'>Choose someone to begin a secure conversation</span></center></html>",
                 ModernTheme.LabelType.TITLE);
         headerLabel.setHorizontalAlignment(SwingConstants.CENTER);
         headerLabel.setBorder(BorderFactory.createEmptyBorder(
-                ModernTheme.SPACING_LARGE, ModernTheme.SPACING_MEDIUM, 
+                ModernTheme.SPACING_LARGE, ModernTheme.SPACING_MEDIUM,
                 ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
 
         // Users list
@@ -70,19 +75,19 @@ public class UserSelectionPage extends JFrame {
         usersList.setBorder(BorderFactory.createEmptyBorder(
                 ModernTheme.SPACING_SMALL, ModernTheme.SPACING_MEDIUM,
                 ModernTheme.SPACING_SMALL, ModernTheme.SPACING_MEDIUM));
-        
+
         usersList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                    boolean isSelected, boolean cellHasFocus) {
+                                                          boolean isSelected, boolean cellHasFocus) {
                 Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-                
+
                 // Apply modern styling
                 setFont(ModernTheme.FONT_MEDIUM);
                 setBorder(BorderFactory.createEmptyBorder(
                         ModernTheme.SPACING_SMALL, ModernTheme.SPACING_MEDIUM,
                         ModernTheme.SPACING_SMALL, ModernTheme.SPACING_MEDIUM));
-                
+
                 if (value.toString().equals(currentUsername)) {
                     setText(value + " (you)");
                     setFont(getFont().deriveFont(Font.ITALIC));
@@ -122,13 +127,13 @@ public class UserSelectionPage extends JFrame {
         statusLabel = ModernTheme.createLabel("Loading users...", ModernTheme.LabelType.CAPTION);
         statusLabel.setHorizontalAlignment(SwingConstants.CENTER);
         statusLabel.setBorder(BorderFactory.createEmptyBorder(
-                ModernTheme.SPACING_SMALL, ModernTheme.SPACING_SMALL, 
+                ModernTheme.SPACING_SMALL, ModernTheme.SPACING_SMALL,
                 ModernTheme.SPACING_SMALL, ModernTheme.SPACING_SMALL));
 
         // Buttons panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, ModernTheme.SPACING_MEDIUM, 0));
         buttonPanel.setBackground(ModernTheme.BACKGROUND_PRIMARY);
-        
+
         JButton selectButton = ModernTheme.createButton("Start Chatting", ModernTheme.ButtonType.PRIMARY);
         JButton refreshButton = ModernTheme.createButton("Refresh", ModernTheme.ButtonType.SECONDARY);
         JButton manualButton = ModernTheme.createButton("Manual Key Exchange", ModernTheme.ButtonType.SECONDARY);
@@ -242,7 +247,9 @@ public class UserSelectionPage extends JFrame {
 
     public String getCurrentUsername() {
         return currentUsername;
-    }    private void connectToServerAndLoadUsers() {
+    }
+
+    private void connectToServerAndLoadUsers() {
         // Initialize connection and load users from server
         SwingUtilities.invokeLater(() -> {
             statusLabel.setText("Connecting to server...");
@@ -268,12 +275,12 @@ public class UserSelectionPage extends JFrame {
                     SwingUtilities.invokeLater(() -> {
                         statusLabel.setText("Failed to connect to server");
                         logger.severe("Failed to connect to server");
-                        
+
                         // Show error dialog to user
                         JOptionPane.showMessageDialog(this,
-                            "Could not connect to server. Please check your network connection.",
-                            "Connection Failed",
-                            JOptionPane.ERROR_MESSAGE);
+                                "Could not connect to server. Please check your network connection.",
+                                "Connection Failed",
+                                JOptionPane.ERROR_MESSAGE);
                     });
                     return;
                 }
@@ -295,22 +302,22 @@ public class UserSelectionPage extends JFrame {
                 logger.severe("Error connecting to server: " + e.getMessage());
                 SwingUtilities.invokeLater(() -> {
                     statusLabel.setText("Connection error: " + e.getMessage());
-                    
+
                     // Clean up any partial connection state
                     if (connection != null) {
                         disconnect();
                     }
-                    
+
                     // Show detailed error to user
                     JOptionPane.showMessageDialog(this,
-                        "Failed to establish connection: " + e.getMessage() +
-                        "\nPlease try again later.",
-                        "Connection Error",
-                        JOptionPane.ERROR_MESSAGE);
+                            "Failed to establish connection: " + e.getMessage() +
+                                    "\nPlease try again later.",
+                            "Connection Error",
+                            JOptionPane.ERROR_MESSAGE);
                 });
             }
         }, "ServerConnection");
-        
+
         connectionThread.setDaemon(true); // Allow JVM to exit if thread is still running
         connectionThread.start();
     }
@@ -350,7 +357,7 @@ public class UserSelectionPage extends JFrame {
                     } else if ("USERNAME_TAKEN".equals(str)) {
                         // Prompt for new username on UI thread
                         final String currentAttempt = usernameToTry;
-                        final String[] newUsername = { null };
+                        final String[] newUsername = {null};
                         SwingUtilities.invokeAndWait(() -> {
                             newUsername[0] = JOptionPane.showInputDialog(
                                     this,
@@ -438,7 +445,9 @@ public class UserSelectionPage extends JFrame {
                 }
             }
         });
-    }    /**
+    }
+
+    /**
      * Disconnects from the server and cleans up resources in a specific order:
      * 1. Notify server of disconnect (if possible)
      * 2. Close output stream (first to prevent pipe broken errors)
@@ -450,8 +459,8 @@ public class UserSelectionPage extends JFrame {
         Thread cleanupThread = new Thread(() -> {
             try {
                 // 1. Try to notify server about disconnection if connection is still alive
-                if (serverOutput != null && connection != null && 
-                    connection.getSocket() != null && !connection.getSocket().isClosed()) {
+                if (serverOutput != null && connection != null &&
+                        connection.getSocket() != null && !connection.getSocket().isClosed()) {
                     try {
                         serverOutput.writeObject("DISCONNECT:" + currentUsername);
                         serverOutput.flush();
@@ -509,7 +518,9 @@ public class UserSelectionPage extends JFrame {
 
     public UserSelectionListener getListener() {
         return listener;
-    }    public Connection getConnection() {
+    }
+
+    public Connection getConnection() {
         return connection;
     }
 }

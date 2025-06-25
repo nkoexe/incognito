@@ -29,23 +29,23 @@ public class Connection {
             return true;
         } catch (UnknownHostException e) {
             ErrorHandler.handleConnectionError(
-                null,
-                "Server address '" + host + "' could not be resolved",
-                true,
-                () -> connect()
+                    null,
+                    "Server address '" + host + "' could not be resolved",
+                    true,
+                    () -> connect()
             );
         } catch (IOException e) {
             ErrorHandler.handleConnectionError(
-                null,
-                "Could not connect to server at " + host + ":" + port,
-                true,
-                () -> connect()
+                    null,
+                    "Could not connect to server at " + host + ":" + port,
+                    true,
+                    () -> connect()
             );
         } catch (Exception e) {
             ErrorHandler.handleFatalError(
-                null,
-                "Unexpected error while connecting to server",
-                e
+                    null,
+                    "Unexpected error while connecting to server",
+                    e
             );
         }
         return false;
@@ -60,15 +60,11 @@ public class Connection {
             }
         } catch (IOException e) {
             ErrorHandler.showWarning(
-                null,
-                "Error while closing connection: " + e.getMessage(),
-                "Some resources may not have been properly released"
+                    null,
+                    "Error while closing connection: " + e.getMessage(),
+                    "Some resources may not have been properly released"
             );
         }
-    }
-
-    public String receive() {
-        return "";
     }
 
 }

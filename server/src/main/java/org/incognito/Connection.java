@@ -27,11 +27,11 @@ public class Connection {
 
     // Data structure for private chat
     private Map<String, ClientHandler> pendingPrivateChats = new ConcurrentHashMap<>(); // sessionId ->
-                                                                                        // clientHandlerInAttesa
+    // clientHandlerInAttesa
     private Map<String, PrivateChatSession> activePrivateSessions = new ConcurrentHashMap<>(); // sessionId ->
-                                                                                               // PrivateChatSession
+    // PrivateChatSession
     private Map<ClientHandler, String> clientToSessionIdMap = new ConcurrentHashMap<>(); // clientHandler -> sessionId
-                                                                                         // (for active sessions)
+    // (for active sessions)
 
     public Connection() {
         try {
@@ -92,13 +92,14 @@ public class Connection {
             client.send(message);
         }
     }    // add user to the list of connected users
+
     public void registerUser(String username, ClientHandler clientHandler) {
         // Store the username in its original case but check case-insensitively
         if (isUsernameTaken(username)) {
             clientHandler.send("USERNAME_TAKEN");
             return;
         }
-        
+
         usersClientMap.put(username, clientHandler);
         connectedUsers.add(username);
 
@@ -106,7 +107,7 @@ public class Connection {
         logger.info("User " + username + " registered from " + clientHandler.getSocket().getRemoteSocketAddress());
 
         broadcastUserList(); // Send updated user list to all clients
-        
+
         // Notify all OTHER clients about the new user (not the user themselves)
         for (ClientHandler client : new ArrayList<>(usersClientMap.values())) {
             if (client != clientHandler && client.getUsername() != null) {
@@ -157,14 +158,15 @@ public class Connection {
     public ClientHandler getClientByUsername(String username) {
         return usersClientMap.get(username);
     }    // Check if username is already taken (case-insensitive)
+
     public boolean isUsernameTaken(String username) {
         return connectedUsers.stream()
-            .anyMatch(existingUser -> existingUser.equalsIgnoreCase(username));
+                .anyMatch(existingUser -> existingUser.equalsIgnoreCase(username));
     }
 
     // Methods for private chat session handling
     public synchronized void handlePrivateChatRequest(ClientHandler requester, String sessionId,
-            String requesterUsername) {
+                                                      String requesterUsername) {
         if (clientToSessionIdMap.containsKey(requester)) {
             requester.send("ERROR:Already in a session or pending request.");
             logger.warning("User " + requesterUsername + " tried to start a new private chat while already in one.");
@@ -199,20 +201,23 @@ public class Connection {
             ChatSessionLogger.logInfo("User " + requesterUsername + " is waiting for a peer for session " + sessionId);
             logger.info("User " + requesterUsername + " is waiting for a peer for session " + sessionId);
         }
-    }    public void forwardPrivateMessage(ClientHandler sender, ChatMessage message) {
+    }
+
+    public void forwardPrivateMessage(ClientHandler sender, ChatMessage message) {
         String senderUsername = sender.getUsername();
         if (senderUsername == null && sender.getSocket() != null) {
             senderUsername = "[NoUsername:" + sender.getSocket().getRemoteSocketAddress() + "]";
         } else if (senderUsername == null) {
             senderUsername = "[NoUsername:SocketInfoUnavailable]";
-        }        String sessionId = clientToSessionIdMap.get(sender);
+        }
+        String sessionId = clientToSessionIdMap.get(sender);
         if (sessionId == null) {
             // Check if this is a manual key exchange user who doesn't need a traditional session
             // For manual key exchange, broadcast the message to all other connected users
             if (usersClientMap.containsValue(sender)) {
                 logger.info("Broadcasting message from manual key exchange user: " + senderUsername + " to " + (usersClientMap.size() - 1) + " other users");
                 ChatSessionLogger.logInfo("Manual key exchange message from " + senderUsername + ": " + message.getEncryptedContent());
-                
+
                 // Broadcast the message to all other connected users (excluding the sender)
                 int messagesSent = 0;
                 for (ClientHandler client : new ArrayList<>(usersClientMap.values())) {
@@ -225,7 +230,7 @@ public class Connection {
                 logger.info("Total messages sent: " + messagesSent);
                 return;
             }
-            
+
             logger.warning("User " + senderUsername + " not found in usersClientMap, denying message");
             sender.send("ERROR:You are not in an active private chat session.");
             ChatSessionLogger

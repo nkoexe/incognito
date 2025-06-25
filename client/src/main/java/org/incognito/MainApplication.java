@@ -11,7 +11,9 @@ public class MainApplication {
     private static GUITest chatClient;
     private static Logger logger = Logger.getLogger(MainApplication.class.getName());
     private static UserSelectionPage.UserSelectionListener userSelectionListener;
-    private static CryptoManager cryptoManager;    public static void main(String[] args) {
+    private static CryptoManager cryptoManager;
+
+    public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             // Initialize modern theme first
             ModernTheme.initialize();
@@ -37,7 +39,7 @@ public class MainApplication {
             userSelectionListener = new UserSelectionPage.UserSelectionListener() {
                 @Override
                 public void onAutomaticChatRequested(Connection connection, String targetUser,
-                        UserSelectionPage userSelectionPage) {
+                                                     UserSelectionPage userSelectionPage) {
                     try {
                         // Show a waiting message
                         userSelectionPage.setStatus("Starting chat with " + targetUser + "...");
@@ -59,32 +61,34 @@ public class MainApplication {
 
                         // Close the user selection page and show chat
                         userSelectionPage.dispose();
-                        chatClient.setVisible(true);                    } catch (InterruptedException e) {
+                        chatClient.setVisible(true);
+                    } catch (InterruptedException e) {
                         Thread.currentThread().interrupt();
                         if (chatClient != null) {
                             chatClient.dispose();
                         }
                         ErrorHandler.handleConnectionError(userSelectionPage,
-                            "Connection initialization interrupted",
-                            false,
-                            null);
+                                "Connection initialization interrupted",
+                                false,
+                                null);
                     } catch (Exception e) {
                         if (chatClient != null) {
                             chatClient.dispose();
                         }
                         ErrorHandler.handleConnectionError(userSelectionPage,
-                            "Error while initializing connection: " + e.getMessage(),
-                            false,
-                            null);
+                                "Error while initializing connection: " + e.getMessage(),
+                                false,
+                                null);
                     }
                 }
 
                 @Override
                 public void onManualKeyExchange(UserSelectionPage userSelectionPage) {
                     // Open the original MenuPage for manual key exchange
-                    MenuPage.MenuListener menuListener = new MenuPage.MenuListener() {                        @Override
+                    MenuPage.MenuListener menuListener = new MenuPage.MenuListener() {
+                        @Override
                         public void onKeysExchangedAndProceed(CryptoManager readyCryptoManager,
-                                MenuPage menuPageInstance) {
+                                                              MenuPage menuPageInstance) {
                             if (readyCryptoManager.getOtherUserPublicKeyBase64() == null) {
                                 LocalLogger.logSevere("Key exchange incomplete: Other user's public key is missing in CryptoManager.");
                                 logger.severe("Key exchange incomplete: Other user's public key is missing in CryptoManager.");
@@ -121,19 +125,20 @@ public class MainApplication {
                                     logger.severe("Impossible connecting to server.");
                                     chatClient.dispose();
                                     ErrorHandler.handleConnectionError(userSelectionPage,
-                                        "Could not connect to server",
-                                        true,
-                                        () -> initializeApplication());
+                                            "Could not connect to server",
+                                            true,
+                                            () -> initializeApplication());
                                     return;
                                 }
                             } catch (Exception e) {
                                 chatClient.dispose();
                                 ErrorHandler.handleConnectionError(userSelectionPage,
-                                    "Failed to connect to server: " + e.getMessage(),
-                                    true,
-                                    () -> initializeApplication());
+                                        "Failed to connect to server: " + e.getMessage(),
+                                        true,
+                                        () -> initializeApplication());
                                 return;
-                            }                            try {
+                            }
+                            try {
                                 // Use the standard method for manual key exchange with fresh connection
                                 chatClient.initializeConnectionWithUsername(connection, currentUsername);
                             } catch (InterruptedException e) {
@@ -141,13 +146,16 @@ public class MainApplication {
                                 LocalLogger.logSevere("Connection initialization interrupted: " + e.getMessage());
                                 logger.severe("Connection initialization interrupted: " + e.getMessage());
                                 chatClient.dispose();
-                                handleConnectionError(null, "Connection initialization failed");                                } catch (Exception e) {
+                                handleConnectionError(null, "Connection initialization failed");
+                            } catch (Exception e) {
                                 LocalLogger.logSevere("Error while initializing connection: " + e.getMessage());
                                 logger.severe("Error while initializing connection: " + e.getMessage());
                                 chatClient.dispose();
                                 handleConnectionError(null, "Error while initializing connection: " + e.getMessage());
                             }
-                        }                        @Override
+                        }
+
+                        @Override
                         public void onCancel(MenuPage menuPageInstance) {
                             if (menuPageInstance != null) {
                                 menuPageInstance.dispose();
@@ -158,8 +166,8 @@ public class MainApplication {
                             } else {
                                 // Create a new user selection page if the old one was disposed
                                 String currentUsername = userSelectionPage != null ?
-                                    userSelectionPage.getCurrentUsername() :
-                                    promptForUsername();
+                                        userSelectionPage.getCurrentUsername() :
+                                        promptForUsername();
                                 if (currentUsername != null && !currentUsername.trim().isEmpty()) {
                                     UserSelectionPage newPage = new UserSelectionPage(currentUsername, userSelectionListener);
                                     newPage.setVisible(true);
@@ -173,7 +181,9 @@ public class MainApplication {
                     userSelectionPage.setVisible(false);
                     MenuPage menuPage = new MenuPage(cryptoManager, menuListener);
                     menuPage.setVisible(true);
-                }                    @Override
+                }
+
+                @Override
                 public void onCancel(UserSelectionPage userSelectionPage) {
                     if (userSelectionPage != null) {
                         userSelectionPage.disconnect(); // Cleanup connection
@@ -185,8 +195,9 @@ public class MainApplication {
             };
 
             UserSelectionPage userSelectionPage = new UserSelectionPage(username, userSelectionListener);
-            userSelectionPage.setVisible(true);            } catch (Exception e) {
-                ErrorHandler.handleInitializationError(
+            userSelectionPage.setVisible(true);
+        } catch (Exception e) {
+            ErrorHandler.handleInitializationError(
                     null,
                     "Error during application startup",
                     e,
@@ -199,16 +210,16 @@ public class MainApplication {
                                 newPage.setVisible(true);
                             } catch (Exception ex) {
                                 ErrorHandler.handleFatalError(
-                                    null,
-                                    "Failed to initialize encryption",
-                                    ex
+                                        null,
+                                        "Failed to initialize encryption",
+                                        ex
                                 );
                             }
                         } else {
                             System.exit(0);
                         }
                     }
-                );
+            );
         }
     }
 
@@ -236,25 +247,27 @@ public class MainApplication {
             }
         }
         return username;
-    }    private static void handleConnectionError(UserSelectionPage currentPage, String errorMessage) {
+    }
+
+    private static void handleConnectionError(UserSelectionPage currentPage, String errorMessage) {
         if (currentPage != null) {
             currentPage.disconnect();
             currentPage.dispose();
         }
-        
+
         ErrorHandler.handleConnectionError(
-            null,
-            errorMessage,
-            true,
-            () -> {
-                String newUsername = promptForUsername();
-                if (newUsername != null && !newUsername.trim().isEmpty()) {
-                    UserSelectionPage newPage = new UserSelectionPage(newUsername, userSelectionListener);
-                    newPage.setVisible(true);
-                } else {
-                    System.exit(0);
+                null,
+                errorMessage,
+                true,
+                () -> {
+                    String newUsername = promptForUsername();
+                    if (newUsername != null && !newUsername.trim().isEmpty()) {
+                        UserSelectionPage newPage = new UserSelectionPage(newUsername, userSelectionListener);
+                        newPage.setVisible(true);
+                    } else {
+                        System.exit(0);
+                    }
                 }
-            }
         );
     }
 }

@@ -34,8 +34,11 @@ public class MenuPage extends JFrame {
 
     public interface MenuListener {
         void onKeysExchangedAndProceed(CryptoManager readyCryptoManager, MenuPage menuPageInstance);
+
         void onCancel(MenuPage menuPageInstance);
-    }    public MenuPage(CryptoManager cryptoManager, MenuListener listener) {
+    }
+
+    public MenuPage(CryptoManager cryptoManager, MenuListener listener) {
         this.cryptoManager = cryptoManager;
         this.myPublicKeyString = this.cryptoManager.getPublicKeyBase64();
         this.menuListener = listener;
@@ -45,7 +48,7 @@ public class MenuPage extends JFrame {
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE); // Handled by WindowListener
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
-        
+
         // Set modern background
         getContentPane().setBackground(ModernTheme.BACKGROUND_PRIMARY);
 
@@ -63,19 +66,21 @@ public class MenuPage extends JFrame {
 
         initComponents();
         updateQRCodeImage(myPublicKeyString);
-    }    private void initComponents() {
+    }
+
+    private void initComponents() {
         // Choice Panel Host/client
         JPanel choicePanel = ModernTheme.createPanel();
         choicePanel.setLayout(new FlowLayout(FlowLayout.CENTER, ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
         choicePanel.setBorder(BorderFactory.createCompoundBorder(
-            ModernTheme.createRoundedBorder(ModernTheme.BORDER_COLOR, 1),
-            BorderFactory.createEmptyBorder(ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM, 
-                                          ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM)));
-        
+                ModernTheme.createRoundedBorder(ModernTheme.BORDER_COLOR, 1),
+                BorderFactory.createEmptyBorder(ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM,
+                        ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM)));
+
         JLabel roleLabel = ModernTheme.createLabel("Choose your role:", ModernTheme.LabelType.BODY);
         JRadioButton hostButton = new JRadioButton("Host");
         JRadioButton guestButton = new JRadioButton("Client");
-        
+
         // Style radio buttons
         hostButton.setFont(ModernTheme.FONT_MEDIUM);
         hostButton.setBackground(ModernTheme.BACKGROUND_SECONDARY);
@@ -83,16 +88,16 @@ public class MenuPage extends JFrame {
         guestButton.setFont(ModernTheme.FONT_MEDIUM);
         guestButton.setBackground(ModernTheme.BACKGROUND_SECONDARY);
         guestButton.setForeground(ModernTheme.TEXT_PRIMARY);
-        
+
         ButtonGroup group = new ButtonGroup();
         group.add(hostButton);
         group.add(guestButton);
-        
+
         JPanel radioPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, ModernTheme.SPACING_MEDIUM, 0));
         radioPanel.setBackground(ModernTheme.BACKGROUND_SECONDARY);
         radioPanel.add(hostButton);
         radioPanel.add(guestButton);
-        
+
         choicePanel.add(roleLabel);
         choicePanel.add(radioPanel);
 
@@ -100,20 +105,20 @@ public class MenuPage extends JFrame {
         JPanel qrPanel = ModernTheme.createPanel();
         qrPanel.setLayout(new BorderLayout());
         qrPanel.setBorder(BorderFactory.createCompoundBorder(
-            ModernTheme.createRoundedBorder(ModernTheme.BORDER_COLOR, 1),
-            BorderFactory.createEmptyBorder(ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM, 
-                                          ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM)));
-        
+                ModernTheme.createRoundedBorder(ModernTheme.BORDER_COLOR, 1),
+                BorderFactory.createEmptyBorder(ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM,
+                        ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM)));
+
         JLabel qrTitle = ModernTheme.createLabel("Your Public Key QR Code", ModernTheme.LabelType.TITLE);
         qrTitle.setHorizontalAlignment(SwingConstants.CENTER);
-        
+
         qrCodeLabel = new JLabel();
         qrCodeLabel.setHorizontalAlignment(SwingConstants.CENTER);
         qrCodeLabel.setPreferredSize(new Dimension(220, 220));
         qrCodeLabel.setBackground(ModernTheme.BACKGROUND_SECONDARY);
         qrCodeLabel.setBorder(ModernTheme.createRoundedBorder(ModernTheme.BORDER_COLOR, 1));
         qrCodeLabel.setOpaque(true);
-        
+
         qrPanel.add(qrTitle, BorderLayout.NORTH);
         qrPanel.add(qrCodeLabel, BorderLayout.CENTER);
 
@@ -121,8 +126,8 @@ public class MenuPage extends JFrame {
         JPanel buttonPanel = new JPanel(new GridLayout(5, 1, 0, ModernTheme.SPACING_SMALL));
         buttonPanel.setBackground(ModernTheme.BACKGROUND_PRIMARY);
         buttonPanel.setBorder(BorderFactory.createEmptyBorder(
-            ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_LARGE,
-            ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_LARGE));
+                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_LARGE,
+                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_LARGE));
 
         saveQRButton = ModernTheme.createButton("Save QR Code", ModernTheme.ButtonType.SECONDARY);
         saveQRButton.addActionListener(e -> saveMyQRCodeToFile());
@@ -171,9 +176,9 @@ public class MenuPage extends JFrame {
         JPanel mainPanel = new JPanel(new BorderLayout(0, ModernTheme.SPACING_MEDIUM));
         mainPanel.setBackground(ModernTheme.BACKGROUND_PRIMARY);
         mainPanel.setBorder(BorderFactory.createEmptyBorder(
-            ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM,
-            ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
-        
+                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM,
+                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
+
         mainPanel.add(choicePanel, BorderLayout.NORTH);
         mainPanel.add(qrPanel, BorderLayout.CENTER);
 
