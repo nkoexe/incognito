@@ -17,3 +17,7 @@ build/
 .Logs/
 *.log
 *.log*
+
+# Extra
+TO_DO.md
+TECHNICAL_DOCUMENTATION.md
