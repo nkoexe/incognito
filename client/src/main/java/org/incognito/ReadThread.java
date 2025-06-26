@@ -246,17 +246,6 @@ public class ReadThread extends Thread {
         }
     }
 
-    /**
-     * Waits for and returns the next message received from the server.
-     * Useful for blocking reads during login phase (e.g. username confirmation).
-     */
-    public Object readResponse() {
-        try {
-            return messageQueue.take(); // waits until a message is available
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return null;
-        }
-    }
-
+    // public Object readResponse() {
+    // This method used to wait for and return the next message from the server (blocking read), but is not used anywhere in the codebase.
 }

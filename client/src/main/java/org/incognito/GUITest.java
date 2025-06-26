@@ -157,7 +157,7 @@ public class GUITest extends JFrame {
         inputPanel.setBackground(ModernTheme.BACKGROUND_PRIMARY);
         inputPanel.setBorder(BorderFactory.createEmptyBorder(
                 ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM,
-                ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
+                0, ModernTheme.SPACING_MEDIUM));
 
         messageField = ModernTheme.createTextField();
         messageField.setFont(ModernTheme.FONT_MEDIUM);
@@ -861,10 +861,6 @@ public class GUITest extends JFrame {
                 logger.info("Created new user selection page with preserved username: " + preservedUsername);
             });
         }
-    }
-
-    public CryptoManager getCryptoManager() {
-        return cryptoManager;
     }
 }
 
