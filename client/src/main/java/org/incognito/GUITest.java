@@ -237,7 +237,8 @@ public class GUITest extends JFrame {
             try {
                 String response = loginResponseQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
                 if ("USERNAME_ACCEPTED".equals(response)) {
-                    logger.info("Username " + username + " accepted by server");                    // Reset crypto manager session state for fresh key exchange
+                    logger.info("Username " + username + " accepted by server");
+                    // Reset crypto manager session state for fresh key exchange
                     cryptoManager.resetSession();
 
                     // Start automatic key exchange with target user
@@ -245,6 +246,43 @@ public class GUITest extends JFrame {
                     // appendMessage("[System] Initiating secure connection with " + targetUser + "...");
                     AutoKeyExchange.performKeyExchange(targetUser, username, cryptoManager, writeThread);
 
+                } else if ("USERNAME_TAKEN".equals(response)) {
+                    logger.warning("Username " + username + " is already taken");
+
+                    // Before asking for a new username, we need to clean up the existing threads
+                    // to avoid conflicts
+                    if (readThread != null) {
+                        readThread.interrupt();
+                        readThread = null;
+                    }
+                    if (writeThread != null) {
+                        writeThread.interrupt();
+                        writeThread = null;
+                    }
+
+                    // asks the user for a new username
+                    String newUsername = JOptionPane.showInputDialog(this,
+                            "Username already in use. Please enter a different username:",
+                            "Username Taken",
+                            JOptionPane.WARNING_MESSAGE);
+
+                    if (newUsername == null || newUsername.trim().isEmpty()) {
+                        disconnect();
+                        throw new InterruptedException("Username selection cancelled by user");
+                    }
+
+                    // Establish a new connection with the new username
+                    Connection newConnection = new Connection();
+                    boolean connected = newConnection.connect();
+                    if (!connected) {
+                        logger.severe("Failed to establish new connection for username retry");
+                        throw new InterruptedException("Connection failed for username retry");
+                    }
+
+                    // Update the connection and username
+                    this.userName = newUsername.trim();
+                    initializeConnectionWithUsername(newConnection, newUsername.trim(), targetUser);
+                    return;
                 } else {
                     logger.severe("Server rejected username: " + response);
                     appendMessage("[ERROR] Server rejected username: " + response);
@@ -307,9 +345,22 @@ public class GUITest extends JFrame {
 
                             break;
                         case "USERNAME_TAKEN":
-                            JOptionPane.showMessageDialog(this,
-                                    "Username already in use. Please try a different username.");
-                            throw new RuntimeException("Username already taken");
+                            String newUsername = JOptionPane.showInputDialog(this,
+                                    "Username already in use. Please enter a different username:",
+                                    "Username Taken",
+                                    JOptionPane.WARNING_MESSAGE);
+
+                            if (newUsername == null || newUsername.trim().isEmpty()) {
+                                disconnect();
+                                return;
+                            }
+
+                            // Update the username before trying again
+                            this.userName = newUsername.trim();
+
+                            // Reconnect with the new username
+                            initializeConnection(connection);
+                            return;
                         default:
                             logger.warning("Unexpected response: " + str);
                             break;
@@ -744,7 +795,8 @@ public class GUITest extends JFrame {
                 this.isSessionActive = false;
                 messageField.setEnabled(false);
                 sendButton.setEnabled(false);
-                chatArea.append("Contact has left the chat.\n");
+                // Cambiato da "Peer has left the chat" a "Contact has disconnected"
+                chatArea.append("Contact has disconnected.\n");
                 logger.info("Peer " + serverMessage.substring("PEER_DISCONNECTED:".length()) + " disconnected. Chat UI disabled.");
                 if (usersModel.size() > 0) {
                     for (int i = 0; i < usersModel.getSize(); i++) {
@@ -778,7 +830,8 @@ public class GUITest extends JFrame {
             isSessionActive = true;
             messageField.setEnabled(true);
             sendButton.setEnabled(true);
-            appendMessage("✅ Chat is ready! You can now send secure messages.");
+            // Commento per evitare messaggi duplicati "Chat is ready"
+            // appendMessage("✅ Chat is ready! You can now send secure messages.");
         });
     }
 

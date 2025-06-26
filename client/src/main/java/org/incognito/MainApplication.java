@@ -44,6 +44,9 @@ public class MainApplication {
                         // Show a waiting message
                         userSelectionPage.setStatus("Starting chat with " + targetUser + "...");
 
+                        // Using correct username from the user selection page
+                        String currentUsername = userSelectionPage.getCurrentUsername();
+
                         // Disconnect the user selection page cleanly to avoid stream conflicts
                         userSelectionPage.disconnect();
 
@@ -53,11 +56,12 @@ public class MainApplication {
                         if (!connected) {
                             handleConnectionError(userSelectionPage, "Failed to connect to server for chat");
                             return;
-                        }                        // Create GUITest with the configured CryptoManager and user info
-                        chatClient = new GUITest(cryptoManager, username, userSelectionListener);
+                        }
+                        // Create GUITest with the configured CryptoManager and user info
+                        chatClient = new GUITest(cryptoManager, currentUsername, userSelectionListener);
 
                         // Initialize connection with the provided username and target
-                        chatClient.initializeConnectionWithUsername(chatConnection, username, targetUser);
+                        chatClient.initializeConnectionWithUsername(chatConnection, currentUsername, targetUser);
 
                         // Close the user selection page and show chat
                         userSelectionPage.dispose();

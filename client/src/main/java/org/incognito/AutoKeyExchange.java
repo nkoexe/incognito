@@ -83,7 +83,8 @@ public class AutoKeyExchange {
                         response.setPayload(cryptoManager.getPublicKeyBase64());
                         writeThread.sendKeyExchangeMessage(response);
 
-                        chatClient.appendMessage("[System] Key exchange initiated with " + message.getSenderUsername());
+                        // Nascondiamo i messaggi tecnici di scambio chiavi
+                        // chatClient.appendMessage("[System] Key exchange initiated with " + message.getSenderUsername());
                     } catch (Exception e) {
                         ErrorHandler.handleCryptoError(
                                 chatClient,
@@ -111,7 +112,8 @@ public class AutoKeyExchange {
                         sessionKeyMsg.setPayload(encryptedKey);
                         writeThread.sendKeyExchangeMessage(sessionKeyMsg);
 
-                        chatClient.appendMessage("[System] Public key received, sending session key...");
+                        // Hidden: indicate successful public key exchange
+                        // chatClient.appendMessage("[System] Public key received, sending session key...");
                     } catch (Exception e) {
                         ErrorHandler.handleCryptoError(
                                 chatClient,
