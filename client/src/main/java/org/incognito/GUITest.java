@@ -564,21 +564,9 @@ public class GUITest extends JFrame {
         }
     }
 
-    // Method to generate session ID based on usernames (for initial request)
-    @SuppressWarnings("unused")
-    private String generateSessionIdForUsers(String user1, String user2) {
-        try {
-            // Order the usernames to ensure consistency
-            String combinedUsers = user1.compareTo(user2) < 0 ? user1 + user2 : user2 + user1;
-
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(combinedUsers.getBytes(StandardCharsets.UTF_8));
-            return "session_" + Base64.getEncoder().encodeToString(hash).substring(0, 16); // Shorter ID
-        } catch (Exception e) {
-            logger.severe("Error generating session ID for users: " + e.getMessage());
-            return "session-" + Math.abs((user1 + user2).hashCode()); // Fallback
-        }
-    }
+    // private String generateSessionIdForUsers(String user1, String user2) { ... }
+    // This method used to generate a session ID based on two usernames for initial requests.
+    // It is currently unused and was intended for consistent session identification in 1-to-1 chats.
 
     /**
      * Updates the users list in the GUI based on the provided userListStr.

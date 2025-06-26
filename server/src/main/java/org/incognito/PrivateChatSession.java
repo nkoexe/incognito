@@ -30,11 +30,7 @@ public class PrivateChatSession {
         return sessionId;
     }
 
-    public ClientHandler getClient1() {
-        return client1;
-    }
-
-    public ClientHandler getClient2() {
-        return client2;
-    }
+    // public ClientHandler getClient1() { ... }
+    // public ClientHandler getClient2() { ... }
+    // These methods used to return the first and second client in the session, but are not used anywhere in the codebase.
 }
