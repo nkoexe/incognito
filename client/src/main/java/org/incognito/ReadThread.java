@@ -188,15 +188,12 @@ public class ReadThread extends Thread {
             String userListStr = message.substring("USERLIST:".length());
             client.updateUsersList(userListStr);
         } else if (message.startsWith("CONNECT:")) {
-            // String username = message.substring("CONNECT:".length());
-            // client.appendMessage(username + " has joined the chat");
+            // User connected - handled by server broadcast
         } else if (message.startsWith("DISCONNECT:")) {
             String username = message.substring("DISCONNECT:".length());
             SwingUtilities.invokeLater(() -> {
                 client.removeUser(username);
             });
-            // Hidden: Leave notification - can be confusing in 1-to-1 chat context
-            // client.appendMessage(username + " has left the chat");
         } else if (message.startsWith("SERVER:")) {
             String serverMessage = message.substring("SERVER:".length());
             client.appendMessage("[Server] " + serverMessage);
@@ -242,10 +239,6 @@ public class ReadThread extends Thread {
         } catch (IOException e) {
             LocalLogger.logSevere("Error closing read thread: " + e.getMessage());
             logger.severe("Error closing read thread: " + e.getMessage());
-            e.printStackTrace();
         }
     }
-
-    // public Object readResponse() {
-    // This method used to wait for and return the next message from the server (blocking read), but is not used anywhere in the codebase.
 }

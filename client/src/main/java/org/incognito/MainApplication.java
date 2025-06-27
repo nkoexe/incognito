@@ -94,8 +94,6 @@ public class MainApplication {
                         public void onKeysExchangedAndProceed(CryptoManager readyCryptoManager,
                                                               MenuPage menuPageInstance) {
                             if (readyCryptoManager.getOtherUserPublicKeyBase64() == null) {
-                                LocalLogger.logSevere("Key exchange incomplete: Other user's public key is missing in CryptoManager.");
-                                logger.severe("Key exchange incomplete: Other user's public key is missing in CryptoManager.");
                                 JOptionPane.showMessageDialog(
                                         menuPageInstance,
                                         "Incomplete key exchange: the contact's public key has not been loaded.\n" +
@@ -121,39 +119,20 @@ public class MainApplication {
 
                             // Create a fresh connection for manual key exchange
                             Connection connection = new Connection();
-                            boolean connected = false;
                             try {
-                                connected = connection.connect();
-                                if (!connected) {
-                                    LocalLogger.logSevere("Impossible connecting to server.");
-                                    logger.severe("Impossible connecting to server.");
+                                if (!connection.connect()) {
                                     chatClient.dispose();
-                                    ErrorHandler.handleConnectionError(userSelectionPage,
-                                            "Could not connect to server",
-                                            true,
-                                            () -> initializeApplication());
+                                    handleConnectionError(null, "Could not connect to server");
                                     return;
                                 }
                             } catch (Exception e) {
                                 chatClient.dispose();
-                                ErrorHandler.handleConnectionError(userSelectionPage,
-                                        "Failed to connect to server: " + e.getMessage(),
-                                        true,
-                                        () -> initializeApplication());
+                                handleConnectionError(null, "Failed to connect to server: " + e.getMessage());
                                 return;
                             }
                             try {
-                                // Use the standard method for manual key exchange with fresh connection
                                 chatClient.initializeConnectionWithUsername(connection, currentUsername);
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                LocalLogger.logSevere("Connection initialization interrupted: " + e.getMessage());
-                                logger.severe("Connection initialization interrupted: " + e.getMessage());
-                                chatClient.dispose();
-                                handleConnectionError(null, "Connection initialization failed");
                             } catch (Exception e) {
-                                LocalLogger.logSevere("Error while initializing connection: " + e.getMessage());
-                                logger.severe("Error while initializing connection: " + e.getMessage());
                                 chatClient.dispose();
                                 handleConnectionError(null, "Error while initializing connection: " + e.getMessage());
                             }

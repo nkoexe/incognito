@@ -25,13 +25,10 @@ public class Connection {
     private Map<String, ClientHandler> usersClientMap = new ConcurrentHashMap<>();
     private Set<String> connectedUsers = ConcurrentHashMap.newKeySet();
 
-    // Data structure for private chat
-    private Map<String, ClientHandler> pendingPrivateChats = new ConcurrentHashMap<>(); // sessionId ->
-    // clientHandlerInAttesa
-    private Map<String, PrivateChatSession> activePrivateSessions = new ConcurrentHashMap<>(); // sessionId ->
-    // PrivateChatSession
-    private Map<ClientHandler, String> clientToSessionIdMap = new ConcurrentHashMap<>(); // clientHandler -> sessionId
-    // (for active sessions)
+    // Data structures for private chat sessions
+    private Map<String, ClientHandler> pendingPrivateChats = new ConcurrentHashMap<>();
+    private Map<String, PrivateChatSession> activePrivateSessions = new ConcurrentHashMap<>();
+    private Map<ClientHandler, String> clientToSessionIdMap = new ConcurrentHashMap<>();
 
     public Connection() {
         try {
@@ -106,7 +103,7 @@ public class Connection {
         clientHandler.send("USERNAME_ACCEPTED");
         logger.info("User " + username + " registered from " + clientHandler.getSocket().getRemoteSocketAddress());
 
-        broadcastUserList(); // Send updated user list to all clients
+        broadcastUserList();
 
         // Notify all OTHER clients about the new user (not the user themselves)
         for (ClientHandler client : new ArrayList<>(usersClientMap.values())) {
@@ -127,7 +124,7 @@ public class Connection {
         broadcast("DISCONNECT:" + username);
         broadcastUserList();
 
-        // To close private chat sessions
+        // Close private chat sessions
         String sessionId = clientToSessionIdMap.remove(handler);
         if (sessionId != null) {
             PrivateChatSession session = activePrivateSessions.remove(sessionId);
@@ -135,12 +132,12 @@ public class Connection {
                 ClientHandler peer = session.getOtherClient(handler);
                 if (peer != null) {
                     clientToSessionIdMap.remove(peer);
-                    peer.send("PEER_DISCONNECTED:" + username); // Notify peer about disconnection
+                    peer.send("PEER_DISCONNECTED:" + username);
                     logger.info("Closed private session " + sessionId + " due to disconnect of " + username);
                 }
             }
         }
-        // Remove even from pending private chats
+        // Remove from pending private chats
         pendingPrivateChats.values().remove(handler);
     }
 
@@ -176,8 +173,9 @@ public class Connection {
         if (pendingPrivateChats.containsKey(sessionId)) {
             ClientHandler peerHandler = pendingPrivateChats.remove(sessionId);
 
-            if (peerHandler == requester) { // Same client sent the request again
-                pendingPrivateChats.put(sessionId, requester); // Re-add to pending
+            if (peerHandler == requester) {
+                // Same client sent the request again
+                pendingPrivateChats.put(sessionId, requester);
                 requester.send("WAITING_FOR_PEER");
                 logger.info("User " + requesterUsername + " re-initiated wait for session " + sessionId);
                 return;

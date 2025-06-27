@@ -351,8 +351,8 @@ public class MenuPage extends JFrame {
 
         try {
             String testMessage = "Test Message";
-            String encrypted = cryptoManager.encrypt(testMessage);
-            String decrypted = cryptoManager.decrypt(encrypted);
+            byte[] encrypted = cryptoManager.encryptAES(testMessage);
+            String decrypted = cryptoManager.decryptAES(encrypted);
 
             if (testMessage.equals(decrypted)) {
                 logger.info("AES encryption/decryption test succeeded!");

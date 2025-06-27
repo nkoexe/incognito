@@ -11,10 +11,6 @@ public class Connection {
     private String host = "incognito.njco.dev";
     private int port = 58239;
 
-    // use these for local development
-    // private String host = "127.0.0.1";
-    // private int port = 58239;
-
     private Socket socket;
 
     public Socket getSocket() {

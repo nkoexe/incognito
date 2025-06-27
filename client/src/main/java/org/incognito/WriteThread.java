@@ -156,7 +156,6 @@ public class WriteThread extends Thread {
         } catch (IOException e) {
             LocalLogger.logSevere("Error closing write thread: " + e.getMessage());
             logger.severe("Error closing write thread: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
