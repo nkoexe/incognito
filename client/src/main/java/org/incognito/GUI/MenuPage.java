@@ -71,7 +71,8 @@ public class MenuPage extends JFrame {
     private void initComponents() {
         // Choice Panel Host/client
         JPanel choicePanel = ModernTheme.createPanel();
-        choicePanel.setLayout(new FlowLayout(FlowLayout.CENTER, ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
+        choicePanel
+                .setLayout(new FlowLayout(FlowLayout.CENTER, ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM));
         choicePanel.setBorder(BorderFactory.createCompoundBorder(
                 ModernTheme.createRoundedBorder(ModernTheme.BORDER_COLOR, 1),
                 BorderFactory.createEmptyBorder(ModernTheme.SPACING_MEDIUM, ModernTheme.SPACING_MEDIUM,
@@ -138,12 +139,14 @@ public class MenuPage extends JFrame {
         scanQRButton.addActionListener(e -> scanContactQRCodeFromFile());
         buttonPanel.add(scanQRButton);
 
-        generateAndShareKeyButton = ModernTheme.createButton("Generate and Share AES Key", ModernTheme.ButtonType.PRIMARY);
+        generateAndShareKeyButton = ModernTheme.createButton("Generate and Share AES Key",
+                ModernTheme.ButtonType.PRIMARY);
         generateAndShareKeyButton.setEnabled(false);
         generateAndShareKeyButton.addActionListener(e -> generateAndShareAESKey());
         buttonPanel.add(generateAndShareKeyButton);
 
-        JButton importAESKeyButton = ModernTheme.createButton("Import Encrypted AES Key", ModernTheme.ButtonType.SECONDARY);
+        JButton importAESKeyButton = ModernTheme.createButton("Import Encrypted AES Key",
+                ModernTheme.ButtonType.SECONDARY);
         importAESKeyButton.setEnabled(false);
         importAESKeyButton.addActionListener(e -> importEncryptedAESKey());
         buttonPanel.add(importAESKeyButton);
@@ -229,7 +232,8 @@ public class MenuPage extends JFrame {
             }
             try {
                 QRUtil.generateQRCode(myPublicKeyString, file.getAbsolutePath(), 200, 200);
-                JOptionPane.showMessageDialog(this, "QR Code successfully saved as " + file.getName(), "Success", JOptionPane.INFORMATION_MESSAGE);
+                JOptionPane.showMessageDialog(this, "QR Code successfully saved as " + file.getName(), "Success",
+                        JOptionPane.INFORMATION_MESSAGE);
             } catch (Exception e) {
                 logger.severe("Error while saving QR Code: " + e.getMessage());
                 JOptionPane.showMessageDialog(this,
@@ -255,7 +259,8 @@ public class MenuPage extends JFrame {
                     JOptionPane.showMessageDialog(this,
                             "Contact's public key successfully imported.",
                             "Success", JOptionPane.INFORMATION_MESSAGE);
-                    if (isKeyInitiator) generateAndShareKeyButton.setEnabled(true);
+                    if (isKeyInitiator)
+                        generateAndShareKeyButton.setEnabled(true);
                 } else {
                     JOptionPane.showMessageDialog(this,
                             "No valid QR code found in the image or key is empty.",
@@ -351,8 +356,8 @@ public class MenuPage extends JFrame {
 
         try {
             String testMessage = "Test Message";
-            String encrypted = cryptoManager.encrypt(testMessage);
-            String decrypted = cryptoManager.decrypt(encrypted);
+            byte[] encrypted = cryptoManager.encryptAES(testMessage);
+            String decrypted = cryptoManager.decryptAES(encrypted);
 
             if (testMessage.equals(decrypted)) {
                 logger.info("AES encryption/decryption test succeeded!");

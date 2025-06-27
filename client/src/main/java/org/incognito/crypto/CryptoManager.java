@@ -134,22 +134,6 @@ public class CryptoManager {
         return aesSessionKey; // Return null if not set
     }
 
-    public String encrypt(String plainText) throws Exception {
-        if (aesSessionKey == null) {
-            throw new IllegalStateException("AES session key has not been set. Cannot encrypt message.");
-        }
-        byte[] encrypted = encryptAES(plainText);
-        return Base64.getEncoder().encodeToString(encrypted);
-    }
-
-    public String decrypt(String encryptedText) throws Exception {
-        if (aesSessionKey == null) {
-            throw new IllegalStateException("AES session key has not been set. Cannot decrypt message.");
-        }
-        byte[] decoded = Base64.getDecoder().decode(encryptedText);
-        return decryptAES(decoded);
-    }
-
     public String encryptSessionKeyForPeer() throws Exception {
         if (otherUserPublicKey == null) {
             throw new IllegalStateException("Other user's public key not set");

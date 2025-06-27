@@ -52,7 +52,8 @@ public class GUITest extends JFrame {
     private String currentUsername;
 
     /**
-     * Stores the username of the current chat partner (used for cleanup when disconnecting)
+     * Stores the username of the current chat partner (used for cleanup when
+     * disconnecting)
      */
     private String currentChatPartner;
 
@@ -60,13 +61,15 @@ public class GUITest extends JFrame {
         this.cryptoManager = cryptoManager;
         this.currentUsername = username;
         this.userSelectionListener = listener;
-        // Set up the UI components        // Check if the CryptoManager already has an AES session key (from manual key exchange)
+        // Set up the UI components // Check if the CryptoManager already has an AES
+        // session key (from manual key exchange)
         try {
             if (this.cryptoManager.getAesSessionKey() != null) {
                 logger.info("Using existing AES session key from manual key exchange.");
             } else {
                 logger.info("No AES session key found - will be generated during automatic key exchange.");
-                // For automatic key exchange, the session key will be generated during the exchange process
+                // For automatic key exchange, the session key will be generated during the
+                // exchange process
                 // Do NOT generate one here as it will conflict with the AutoKeyExchange logic
             }
         } catch (Exception e) {
@@ -82,11 +85,9 @@ public class GUITest extends JFrame {
                             ErrorHandler.handleFatalError(
                                     this,
                                     "Failed to generate session key after retry",
-                                    retryEx
-                            );
+                                    retryEx);
                         }
-                    }
-            );
+                    });
         }
 
         // Set up the UI components
@@ -122,7 +123,7 @@ public class GUITest extends JFrame {
         usersList.setCellRenderer(new DefaultListCellRenderer() {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                                                          boolean isSelected, boolean cellHasFocus) {
+                    boolean isSelected, boolean cellHasFocus) {
                 Component renderer = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 setFont(ModernTheme.FONT_MEDIUM);
                 setBorder(BorderFactory.createEmptyBorder(
@@ -211,210 +212,118 @@ public class GUITest extends JFrame {
     }
 
     /**
-     * Initialize connection with a provided username and target user (used by
-     * automated flow)
+     * Initialize connection with provided username and optional target user
      */
     public void initializeConnectionWithUsername(Connection connection, String username, String targetUser)
             throws InterruptedException {
-        logger.info("Initializing connection with username: " + username + " targeting: " + targetUser);
-        this.connection = connection;
-        this.userName = username;
-        this.currentChatPartner = targetUser; // Track target user for cleanup
-
-        if (connection.getSocket() != null) {
-            // Create threads for the existing connection
-            BlockingQueue<String> loginResponseQueue = new ArrayBlockingQueue<>(1);
-            readThread = new ReadThread(connection.getSocket(), this, cryptoManager, loginResponseQueue);
-            writeThread = new WriteThread(connection.getSocket(), this, cryptoManager);
-
-            readThread.start();
-            writeThread.start();
-
-            // Register username with server
-            writeThread.sendMessage("USERLIST:" + username);
-
-            // Wait for server to accept username
-            try {
-                String response = loginResponseQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
-                if ("USERNAME_ACCEPTED".equals(response)) {
-                    logger.info("Username " + username + " accepted by server");
-                    // Reset crypto manager session state for fresh key exchange
-                    cryptoManager.resetSession();
-
-                    // Start automatic key exchange with target user
-                    // Hidden: Technical message about initiating connection - not needed for user
-                    // appendMessage("[System] Initiating secure connection with " + targetUser + "...");
-                    AutoKeyExchange.performKeyExchange(targetUser, username, cryptoManager, writeThread);
-
-                } else if ("USERNAME_TAKEN".equals(response)) {
-                    logger.warning("Username " + username + " is already taken");
-
-                    // Before asking for a new username, we need to clean up the existing threads
-                    // to avoid conflicts
-                    if (readThread != null) {
-                        readThread.interrupt();
-                        readThread = null;
-                    }
-                    if (writeThread != null) {
-                        writeThread.interrupt();
-                        writeThread = null;
-                    }
-
-                    // asks the user for a new username
-                    String newUsername = JOptionPane.showInputDialog(this,
-                            "Username already in use. Please enter a different username:",
-                            "Username Taken",
-                            JOptionPane.WARNING_MESSAGE);
-
-                    if (newUsername == null || newUsername.trim().isEmpty()) {
-                        disconnect();
-                        throw new InterruptedException("Username selection cancelled by user");
-                    }
-
-                    // Establish a new connection with the new username
-                    Connection newConnection = new Connection();
-                    boolean connected = newConnection.connect();
-                    if (!connected) {
-                        logger.severe("Failed to establish new connection for username retry");
-                        throw new InterruptedException("Connection failed for username retry");
-                    }
-
-                    // Update the connection and username
-                    this.userName = newUsername.trim();
-                    initializeConnectionWithUsername(newConnection, newUsername.trim(), targetUser);
-                    return;
-                } else {
-                    logger.severe("Server rejected username: " + response);
-                    appendMessage("[ERROR] Server rejected username: " + response);
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw e;
-            }
-
-        } else {
-            throw new RuntimeException("Connection socket is null");
-        }
+        initializeConnectionWithUsername(connection, username, targetUser, false);
     }
 
     /**
-     * Initialize connection with a provided username (used by manual key exchange flow)
+     * Initialize connection with provided username (for manual key exchange)
      */
     public void initializeConnectionWithUsername(Connection connection, String username) throws InterruptedException {
-        logger.info("Initializing connection with username: " + username);
-        this.connection = connection;
-        this.userName = username;
-
-        if (connection.getSocket() != null) {
-
-            BlockingQueue<String> loginQueue = new ArrayBlockingQueue<>(1);
-
-            // Start read and write threads
-            writeThread = new WriteThread(connection.getSocket(), this, this.cryptoManager);
-            readThread = new ReadThread(connection.getSocket(), this, this.cryptoManager, loginQueue);
-
-            writeThread.start();
-            readThread.start();
-
-            // Update UI with current user's name
-            setTitle("Incognito Chat - " + this.userName);
-            usersModel.clear();
-            usersModel.addElement(this.userName + " (you)");
-
-            // Register username first for manual key exchange flow
-            logger.info("Sending username for registration: " + username);
-            writeThread.sendMessage("USERLIST:" + this.userName);
-
-            try {
-                Object response = loginQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
-
-                if (response instanceof String str) {
-                    switch (str) {
-                        case "USERNAME_ACCEPTED":                            // Hidden: Technical username acceptance message - not needed for user
-
-                            // For manual key exchange, enable chat interface immediately since keys are already exchanged
-                            // Request user list to show available users for messaging
-                            writeThread.sendMessage("REQUEST_USERLIST");
-
-                            isSessionActive = true;
-                            messageField.setEnabled(true);
-                            sendButton.setEnabled(true);
-
-                            // Clear and simple message when chat is ready
-                            chatArea.append("✅ Chat is ready! You can now send secure messages.\n");
-
-                            break;
-                        case "USERNAME_TAKEN":
-                            String newUsername = JOptionPane.showInputDialog(this,
-                                    "Username already in use. Please enter a different username:",
-                                    "Username Taken",
-                                    JOptionPane.WARNING_MESSAGE);
-
-                            if (newUsername == null || newUsername.trim().isEmpty()) {
-                                disconnect();
-                                return;
-                            }
-
-                            // Update the username before trying again
-                            this.userName = newUsername.trim();
-
-                            // Reconnect with the new username
-                            initializeConnection(connection);
-                            return;
-                        default:
-                            logger.warning("Unexpected response: " + str);
-                            break;
-                    }
-                } else if (response == null) {
-                    chatArea.append("Server response timeout.\n");
-                    logger.warning("Timeout waiting for server response.");
-                    disconnect();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw e;
-            }
-
-        } else {
-            throw new RuntimeException("Connection socket is null");
-        }
+        initializeConnectionWithUsername(connection, username, null, true);
     }
 
     /**
-     * Initialize connection with a provided username for reused connections (used by manual key exchange flow)
+     * Core initialization method that handles all connection scenarios
      */
-    public void initializeConnectionWithUsernameReused(Connection connection, String username) throws InterruptedException {
-        logger.info("Initializing connection with username (reused connection): " + username);
+    private void initializeConnectionWithUsername(Connection connection, String username, String targetUser,
+            boolean isManualKeyExchange) throws InterruptedException {
+        logger.info("Initializing connection with username: " + username
+                + (targetUser != null ? " targeting: " + targetUser : ""));
         this.connection = connection;
         this.userName = username;
-        if (connection.getSocket() != null) {
 
-            // Start read and write threads for the reused connection
-            writeThread = new WriteThread(connection.getSocket(), this, this.cryptoManager);
-            readThread = new ReadThread(connection.getSocket(), this, this.cryptoManager);
+        if (targetUser != null) {
+            this.currentChatPartner = targetUser;
+        }
 
-            writeThread.start();
-            readThread.start();
-
-            // Update UI with current user's name
-            setTitle("Incognito Chat - " + this.userName);
-            usersModel.clear();
-            usersModel.addElement(this.userName + " (you)");            // For reused connections in manual key exchange, username is already registered
-            // But we still need to request the user list to see other users
-
-            // Request user list to populate the users list for manual key exchange
-            writeThread.sendMessage("REQUEST_USERLIST");
-
-            // For manual key exchange, enable chat interface immediately since keys are already exchanged
-            isSessionActive = true;
-            messageField.setEnabled(true);
-            sendButton.setEnabled(true);
-
-            // Clear and simple message when chat is ready
-            chatArea.append("✅ Chat is ready! You can now send secure messages.\n");
-
-        } else {
+        if (connection.getSocket() == null) {
             throw new RuntimeException("Connection socket is null");
+        }
+
+        BlockingQueue<String> loginResponseQueue = new ArrayBlockingQueue<>(1);
+        readThread = new ReadThread(connection.getSocket(), this, cryptoManager, loginResponseQueue);
+        writeThread = new WriteThread(connection.getSocket(), this, cryptoManager);
+
+        readThread.start();
+        writeThread.start();
+
+        setTitle("Incognito Chat - " + userName);
+        usersModel.clear();
+        usersModel.addElement(userName + " (you)");
+
+        writeThread.sendMessage("USERLIST:" + username);
+
+        try {
+            String response = loginResponseQueue.poll(5, java.util.concurrent.TimeUnit.SECONDS);
+
+            if ("USERNAME_ACCEPTED".equals(response)) {
+                logger.info("Username " + username + " accepted by server");
+
+                if (targetUser != null) {
+                    // Automatic key exchange flow
+                    cryptoManager.resetSession();
+                    AutoKeyExchange.performKeyExchange(targetUser, username, cryptoManager, writeThread);
+                } else if (isManualKeyExchange) {
+                    // Manual key exchange flow - enable chat immediately
+                    writeThread.sendMessage("REQUEST_USERLIST");
+                    isSessionActive = true;
+                    messageField.setEnabled(true);
+                    sendButton.setEnabled(true);
+                    chatArea.append("✅ Chat is ready! You can now send secure messages.\n");
+                }
+
+            } else if ("USERNAME_TAKEN".equals(response)) {
+                handleUsernameTaken(connection, targetUser, isManualKeyExchange);
+            } else {
+                logger.severe("Server rejected username: " + response);
+                appendMessage("[ERROR] Server rejected username: " + response);
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        }
+    }
+
+    private void handleUsernameTaken(Connection connection, String targetUser, boolean isManualKeyExchange)
+            throws InterruptedException {
+        logger.warning("Username " + userName + " is already taken");
+
+        // Clean up existing threads
+        if (readThread != null) {
+            readThread.interrupt();
+            readThread = null;
+        }
+        if (writeThread != null) {
+            writeThread.interrupt();
+            writeThread = null;
+        }
+
+        String newUsername = JOptionPane.showInputDialog(this,
+                "Username already in use. Please enter a different username:",
+                "Username Taken",
+                JOptionPane.WARNING_MESSAGE);
+
+        if (newUsername == null || newUsername.trim().isEmpty()) {
+            disconnect();
+            throw new InterruptedException("Username selection cancelled by user");
+        }
+
+        if (targetUser != null) {
+            // Automatic flow - need new connection
+            Connection newConnection = new Connection();
+            if (!newConnection.connect()) {
+                logger.severe("Failed to establish new connection for username retry");
+                throw new InterruptedException("Connection failed for username retry");
+            }
+            initializeConnectionWithUsername(newConnection, newUsername.trim(), targetUser);
+        } else {
+            // Manual flow
+            this.userName = newUsername.trim();
+            initializeConnectionWithUsername(connection, newUsername.trim());
         }
     }
 
@@ -470,19 +379,18 @@ public class GUITest extends JFrame {
                                 if (reconnect) {
                                     try {
                                         String newSessionId = generateSessionId();
-                                        writeThread.sendMessage("PRIVATE_CHAT:" + sessionInputName + ":" + newSessionId);
+                                        writeThread
+                                                .sendMessage("PRIVATE_CHAT:" + sessionInputName + ":" + newSessionId);
                                     } catch (Exception e) {
                                         ErrorHandler.handleFatalError(
                                                 this,
                                                 "Failed to generate session ID after retry",
-                                                e
-                                        );
+                                                e);
                                     }
                                 } else {
                                     disconnect();
                                 }
-                            }
-                    );
+                            });
                     return;
                 }
             } catch (Exception e) {
@@ -490,8 +398,7 @@ public class GUITest extends JFrame {
                         this,
                         "Failed to initialize connection: " + e.getMessage(),
                         false,
-                        null
-                );
+                        null);
                 return;
             }
 
@@ -537,8 +444,7 @@ public class GUITest extends JFrame {
                     this,
                     "Connection socket is null",
                     false,
-                    null
-            );
+                    null);
         }
     }
 
@@ -563,10 +469,6 @@ public class GUITest extends JFrame {
             return "error-session-" + System.currentTimeMillis(); // Fallback
         }
     }
-
-    // private String generateSessionIdForUsers(String user1, String user2) { ... }
-    // This method used to generate a session ID based on two usernames for initial requests.
-    // It is currently unused and was intended for consistent session identification in 1-to-1 chats.
 
     /**
      * Updates the users list in the GUI based on the provided userListStr.
@@ -675,8 +577,7 @@ public class GUITest extends JFrame {
             ErrorHandler.showWarning(
                     this,
                     "Error during disconnection: " + e.getMessage(),
-                    "Some resources may not have been properly released"
-            );
+                    "Some resources may not have been properly released");
             logger.severe("Error during disconnection: " + e.getMessage());
             e.printStackTrace();
             ChatSessionLogger.logSevere("Error occurred during disconnection: " + e.getMessage());
@@ -688,8 +589,7 @@ public class GUITest extends JFrame {
             ErrorHandler.showWarning(
                     this,
                     "Cannot send message - session is not active",
-                    "Please wait for peer connection to be established"
-            );
+                    "Please wait for peer connection to be established");
             return;
         }
 
@@ -714,12 +614,10 @@ public class GUITest extends JFrame {
                                         this,
                                         "Failed to reconnect: " + ex.getMessage(),
                                         false,
-                                        null
-                                );
+                                        null);
                             }
                         }
-                    }
-            );
+                    });
             return;
         }
 
@@ -742,8 +640,7 @@ public class GUITest extends JFrame {
                         if (reconnect) {
                             messageField.setText(message); // Restore message for retry
                         }
-                    }
-            );
+                    });
         }
     }
 
@@ -758,8 +655,7 @@ public class GUITest extends JFrame {
             // Clear and simple message when chat is ready
             chatArea.append("✅ Chat is ready! You can now send secure messages.\n");
 
-            // PER I BROOO!!!!!
-            // Aggiorna la lista utenti per la chat 1-a-1
+            // Update users list for 1-to-1 chat
             usersModel.clear();
             if (this.userName != null) { // Check if userName is initialized
                 usersModel.addElement(this.userName + " (you)");
@@ -783,9 +679,10 @@ public class GUITest extends JFrame {
                 this.isSessionActive = false;
                 messageField.setEnabled(false);
                 sendButton.setEnabled(false);
-                // Cambiato da "Peer has left the chat" a "Contact has disconnected"
+                // Contact has disconnected message
                 chatArea.append("Contact has disconnected.\n");
-                logger.info("Peer " + serverMessage.substring("PEER_DISCONNECTED:".length()) + " disconnected. Chat UI disabled.");
+                logger.info("Peer " + serverMessage.substring("PEER_DISCONNECTED:".length())
+                        + " disconnected. Chat UI disabled.");
                 if (usersModel.size() > 0) {
                     for (int i = 0; i < usersModel.getSize(); i++) {
                         if (usersModel.getElementAt(i).contains(" (contact)")) {
@@ -818,8 +715,6 @@ public class GUITest extends JFrame {
             isSessionActive = true;
             messageField.setEnabled(true);
             sendButton.setEnabled(true);
-            // Commento per evitare messaggi duplicati "Chat is ready"
-            // appendMessage("✅ Chat is ready! You can now send secure messages.");
         });
     }
 
@@ -837,8 +732,7 @@ public class GUITest extends JFrame {
                 "Are you sure you want to exit the chat?\nYou will return to the main menu.",
                 "Exit Chat",
                 JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE
-        );
+                JOptionPane.QUESTION_MESSAGE);
 
         if (option == JOptionPane.YES_OPTION) {
             // Log the action
@@ -863,4 +757,3 @@ public class GUITest extends JFrame {
         }
     }
 }
-

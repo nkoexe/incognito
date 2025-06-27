@@ -40,11 +40,9 @@ public class WriteThread extends Thread {
                             ErrorHandler.handleFatalError(
                                     client,
                                     "Failed to initialize message sending after retry",
-                                    retryEx
-                            );
+                                    retryEx);
                         }
-                    }
-            );
+                    });
         }
     }
 
@@ -67,11 +65,9 @@ public class WriteThread extends Thread {
                                     ErrorHandler.handleFatalError(
                                             client,
                                             "Failed to reconnect",
-                                            ex
-                                    );
+                                            ex);
                                 }
-                            }
-                    );
+                            });
                     continue;
                 }
 
@@ -89,9 +85,7 @@ public class WriteThread extends Thread {
                                         client.getUserName(),
                                         message,
                                         cryptoManager,
-                                        this
-                                )
-                        );
+                                        this));
                         continue;
                     }
 
@@ -111,8 +105,7 @@ public class WriteThread extends Thread {
                                     } catch (InterruptedException ie) {
                                         Thread.currentThread().interrupt();
                                     }
-                                }
-                        );
+                                });
                         continue;
                     }
                 }
@@ -134,12 +127,10 @@ public class WriteThread extends Thread {
                                     ErrorHandler.handleFatalError(
                                             client,
                                             "Failed to reconnect",
-                                            e
-                                    );
+                                            e);
                                 }
                             }
-                        }
-                );
+                        });
             }
         }
         close();
@@ -156,7 +147,6 @@ public class WriteThread extends Thread {
         } catch (IOException e) {
             LocalLogger.logSevere("Error closing write thread: " + e.getMessage());
             logger.severe("Error closing write thread: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 
@@ -179,11 +169,9 @@ public class WriteThread extends Thread {
                                 ErrorHandler.handleFatalError(
                                         client,
                                         "Failed to reconnect for key exchange",
-                                        ex
-                                );
+                                        ex);
                             }
-                        }
-                );
+                        });
                 return;
             }
 

@@ -18,12 +18,14 @@ public class ClientHandler implements Runnable {
         this.socket = socket;
 
         try {
-            // Initialize streams - important to create output stream first to avoid deadlock
+            // Initialize streams - important to create output stream first to avoid
+            // deadlock
             outputStream = new ObjectOutputStream(socket.getOutputStream());
             outputStream.flush(); // Ensure the stream is flushed before reading
             inputStream = new ObjectInputStream(socket.getInputStream());
         } catch (IOException e) {
-            ErrorHandler.handleServerError("Error creating streams for client " + socket.getRemoteSocketAddress(), e, false);
+            ErrorHandler.handleServerError("Error creating streams for client " + socket.getRemoteSocketAddress(), e,
+                    false);
             closeConnection();
         }
     }
@@ -82,20 +84,14 @@ public class ClientHandler implements Runnable {
             logger.info("User " + username + " successfully authenticated. Ready for messages.");
 
             // Main loop for handling messages
-            label:
-            while (!Thread.currentThread().isInterrupted() && !socket.isClosed()) {
+            label: while (!Thread.currentThread().isInterrupted() && !socket.isClosed()) {
                 Object obj = inputStream.readObject();
 
                 switch (obj) {
                     case String command:
                         if (command.startsWith("PRIVATE_CHAT:")) {
-                            // INFO PER I BRO!!!!
-                            // Formato atteso: "PRIVATE_CHAT:sessionId"
-                            // Il client invia il suo username nel messaggio originale, ma il server lo
-                            // conosce già come this.username
-                            // Il client invia "PRIVATE_CHAT:suoNomeUtente:sessionId"
-                            // Il server usa this.username e il sessionId fornito.
-                            String[] parts = command.split(":", 3); // PRIVATE_CHAT, usernameMittente, sessionId
+                            // Expected format: "PRIVATE_CHAT:username:sessionId"
+                            String[] parts = command.split(":", 3);
 
                             if (parts.length == 3) {
                                 String sessionId = parts[2];
@@ -104,29 +100,16 @@ public class ClientHandler implements Runnable {
                                 send("ERROR:Invalid PRIVATE_CHAT command format. Expected PRIVATE_CHAT:yourUsername:sessionId");
                                 logger.warning("User " + username + " sent invalid PRIVATE_CHAT command: " + command);
                             }
-                        } else if (command.equalsIgnoreCase("REQUEST_USERLIST")) { // Comando esplicito per richiedere
-                            // la lista
-                            server.broadcastUserList(); // Invia solo a questo client? O a tutti?
-
-                            // Per ora, broadcastUserList invia a tutti.
-                            // Se si vuole inviare solo a questo client:
-                            // String userListStr = String.join(",", server.getConnectedUsers());
-                            // send("USERLIST:" + userListStr);
+                        } else if (command.equalsIgnoreCase("REQUEST_USERLIST")) {
+                            server.broadcastUserList();
                         }
-                        // Altri comandi String potrebbero essere gestiti qui (es. PING, PONG, etc.)
+                        // Other string commands could be handled here
                         else {
                             logger.info("Received unhandled String command from " + username + ": " + command);
-                            // Potrebbe essere un messaggio di chat pubblico se non si usa ChatMessage per
-                            // quello
-                            // server.broadcast(username + ": " + command); // Esempio per chat pubblica
-                            // testuale
                         }
                         break;
                     case ChatMessage chatMsg:
-                        // Ora, invece di fare broadcast, inoltra il messaggio privato
-                        // Il ChatMessage dovrebbe contenere informazioni sulla sessione o essere
-                        // implicitamente parte della sessione corrente del ClientHandler.
-                        // La logica in Connection.forwardPrivateMessage userà clientToSessionIdMap.
+                        // Forward the private message instead of broadcasting
                         server.forwardPrivateMessage(this, chatMsg);
                         break;
                     case KeyExchangeMessage keyExchangeMsg:
@@ -153,12 +136,16 @@ public class ClientHandler implements Runnable {
                         + " connection issue: "
                         + e.getMessage());
             } else {
-                ErrorHandler.handleServerError("IOException for client " + (username != null ? username : socket.getRemoteSocketAddress()), e, false);
+                ErrorHandler.handleServerError(
+                        "IOException for client " + (username != null ? username : socket.getRemoteSocketAddress()), e,
+                        false);
             }
         } catch (ClassNotFoundException e) {
-            ErrorHandler.handleServerError("ClassNotFoundException from client " + (username != null ? username : socket.getRemoteSocketAddress()), e, false);
+            ErrorHandler.handleServerError("ClassNotFoundException from client "
+                    + (username != null ? username : socket.getRemoteSocketAddress()), e, false);
         } catch (Exception e) { // Catch-all for unexpected exceptions
-            ErrorHandler.handleServerError("Unexpected error in ClientHandler for " + (username != null ? username : socket.getRemoteSocketAddress()), e, false);
+            ErrorHandler.handleServerError("Unexpected error in ClientHandler for "
+                    + (username != null ? username : socket.getRemoteSocketAddress()), e, false);
         } finally {
             logger.fine("ClientHandler for " + (username != null ? username : "unknown user") + " is finishing.");
             closeConnection();
@@ -175,7 +162,8 @@ public class ClientHandler implements Runnable {
             outputStream.writeObject(message);
             outputStream.flush();
         } catch (IOException e) {
-            ErrorHandler.handleServerError("Error sending message to client " + (username != null ? username : "unknown"), e, false);
+            ErrorHandler.handleServerError(
+                    "Error sending message to client " + (username != null ? username : "unknown"), e, false);
         }
     }
 

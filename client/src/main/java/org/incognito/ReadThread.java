@@ -28,7 +28,7 @@ public class ReadThread extends Thread {
     }
 
     public ReadThread(Socket socket, GUITest client, CryptoManager cryptoManager,
-                      BlockingQueue<String> loginResponseQueue) {
+            BlockingQueue<String> loginResponseQueue) {
         this.socket = socket;
         this.client = client;
         this.cryptoManager = cryptoManager;
@@ -40,8 +40,7 @@ public class ReadThread extends Thread {
                         client,
                         "Cannot create input stream - socket is closed",
                         false,
-                        null
-                );
+                        null);
                 return;
             }
             inputStream = new ObjectInputStream(socket.getInputStream());
@@ -57,11 +56,9 @@ public class ReadThread extends Thread {
                             ErrorHandler.handleFatalError(
                                     client,
                                     "Failed to initialize read stream after retry",
-                                    retryEx
-                            );
+                                    retryEx);
                         }
-                    }
-            );
+                    });
         }
     }
 
@@ -103,7 +100,8 @@ public class ReadThread extends Thread {
                     byte[] encrypted = Base64.getDecoder().decode(chatMsg.getEncryptedContent());
                     String decrypted = cryptoManager.decryptAES(encrypted);
 
-                    // For manual key exchange flow, don't display our own messages since they're already shown locally
+                    // For manual key exchange flow, don't display our own messages since they're
+                    // already shown locally
                     if (!chatMsg.getSender().equals(client.getUserName())) {
                         client.appendMessage(chatMsg.getSender() + ": " + decrypted);
                         logger.info("Displayed message from " + chatMsg.getSender() + ": " + decrypted);
@@ -123,8 +121,7 @@ public class ReadThread extends Thread {
                                 "Failed to handle key exchange message",
                                 e,
                                 () -> AutoKeyExchange.handleIncomingKeyExchange(keyExchangeMsg, cryptoManager,
-                                        client.getWriteThread(), client)
-                        );
+                                        client.getWriteThread(), client));
                     }
                 }
             } catch (InterruptedException e) {
@@ -143,12 +140,10 @@ public class ReadThread extends Thread {
                                             client,
                                             "Failed to reconnect: " + ex.getMessage(),
                                             false,
-                                            null
-                                    );
+                                            null);
                                 }
                             }
-                        }
-                );
+                        });
             }
         }
         close();
@@ -158,8 +153,10 @@ public class ReadThread extends Thread {
         try {
             return inputStream.readObject();
         } catch (IOException | ClassNotFoundException e) {
-            // Se il thread è stato interrotto, ignora silenziosamente l'errore di socket chiusa
-            if (Thread.currentThread().isInterrupted() || (e instanceof IOException && socket != null && socket.isClosed())) {
+            // Se il thread è stato interrotto, ignora silenziosamente l'errore di socket
+            // chiusa
+            if (Thread.currentThread().isInterrupted()
+                    || (e instanceof IOException && socket != null && socket.isClosed())) {
                 logger.info("ReadThread interrotto o socket chiusa: chiusura silenziosa.");
                 return null;
             }
@@ -174,11 +171,9 @@ public class ReadThread extends Thread {
                             ErrorHandler.handleFatalError(
                                     client,
                                     "Failed to reconnect",
-                                    ex
-                            );
+                                    ex);
                         }
-                    }
-            );
+                    });
             return null;
         }
     }
@@ -188,15 +183,12 @@ public class ReadThread extends Thread {
             String userListStr = message.substring("USERLIST:".length());
             client.updateUsersList(userListStr);
         } else if (message.startsWith("CONNECT:")) {
-            // String username = message.substring("CONNECT:".length());
-            // client.appendMessage(username + " has joined the chat");
+            // User connected - handled by server broadcast
         } else if (message.startsWith("DISCONNECT:")) {
             String username = message.substring("DISCONNECT:".length());
             SwingUtilities.invokeLater(() -> {
                 client.removeUser(username);
             });
-            // Hidden: Leave notification - can be confusing in 1-to-1 chat context
-            // client.appendMessage(username + " has left the chat");
         } else if (message.startsWith("SERVER:")) {
             String serverMessage = message.substring("SERVER:".length());
             client.appendMessage("[Server] " + serverMessage);
@@ -242,10 +234,6 @@ public class ReadThread extends Thread {
         } catch (IOException e) {
             LocalLogger.logSevere("Error closing read thread: " + e.getMessage());
             logger.severe("Error closing read thread: " + e.getMessage());
-            e.printStackTrace();
         }
     }
-
-    // public Object readResponse() {
-    // This method used to wait for and return the next message from the server (blocking read), but is not used anywhere in the codebase.
 }
