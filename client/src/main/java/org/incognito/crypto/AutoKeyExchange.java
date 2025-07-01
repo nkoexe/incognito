@@ -1,6 +1,7 @@
-package org.incognito;
+package org.incognito.crypto;
 
-import org.incognito.crypto.CryptoManager;
+import org.incognito.*;
+import org.incognito.GUI.UI;
 
 import javax.crypto.SecretKey;
 import javax.swing.SwingUtilities;
@@ -24,11 +25,14 @@ public class AutoKeyExchange {
                 // Create a unique exchange identifier
                 String exchangeKey = currentUsername.compareTo(targetUsername) < 0
                         ? currentUsername + "-" + targetUsername
-                        : targetUsername + "-" + currentUsername;                // Check if exchange is already in progress
+                        : targetUsername + "-" + currentUsername; // Check if exchange is already in progress
                 if (!activeExchanges.add(exchangeKey)) {
-                    LocalLogger.logInfo("Key exchange already in progress with " + targetUsername + ". Clearing old exchange and starting new one.");
-                    logger.info("Key exchange already in progress with " + targetUsername + ". Clearing old exchange and starting new one.");
-                    // Remove the old exchange and proceed with new one (this handles rejoining scenarios)
+                    LocalLogger.logInfo("Key exchange already in progress with " + targetUsername
+                            + ". Clearing old exchange and starting new one.");
+                    logger.info("Key exchange already in progress with " + targetUsername
+                            + ". Clearing old exchange and starting new one.");
+                    // Remove the old exchange and proceed with new one (this handles rejoining
+                    // scenarios)
                     activeExchanges.remove(exchangeKey);
                     activeExchanges.add(exchangeKey);
                 }
@@ -36,7 +40,7 @@ public class AutoKeyExchange {
                 LocalLogger.logInfo("Starting automatic key exchange with " + targetUsername);
                 logger.info("Starting automatic key exchange with " + targetUsername);
 
-                //Send initiation request
+                // Send initiation request
                 KeyExchangeMessage initMsg = new KeyExchangeMessage(
                         KeyExchangeMessage.Type.INITIATE_EXCHANGE,
                         currentUsername,
@@ -50,8 +54,7 @@ public class AutoKeyExchange {
                         writeThread.getClient(),
                         "Failed to initiate key exchange with " + targetUsername,
                         e,
-                        () -> performKeyExchange(targetUsername, currentUsername, cryptoManager, writeThread)
-                );
+                        () -> performKeyExchange(targetUsername, currentUsername, cryptoManager, writeThread));
                 // Clean up on failure
                 String exchangeKey = currentUsername.compareTo(targetUsername) < 0
                         ? currentUsername + "-" + targetUsername
@@ -63,9 +66,9 @@ public class AutoKeyExchange {
     }
 
     public static void handleIncomingKeyExchange(KeyExchangeMessage message,
-                                                 CryptoManager cryptoManager,
-                                                 WriteThread writeThread,
-                                                 GUITest chatClient) {
+            CryptoManager cryptoManager,
+            WriteThread writeThread,
+            UI chatClient) {
         try {
             LocalLogger.logInfo("Handling key exchange message: " + message);
             logger.info("Handling key exchange message: " + message);
@@ -84,14 +87,14 @@ public class AutoKeyExchange {
                         writeThread.sendKeyExchangeMessage(response);
 
                         // Nascondiamo i messaggi tecnici di scambio chiavi
-                        // chatClient.appendMessage("[System] Key exchange initiated with " + message.getSenderUsername());
+                        // chatClient.appendMessage("[System] Key exchange initiated with " +
+                        // message.getSenderUsername());
                     } catch (Exception e) {
                         ErrorHandler.handleCryptoError(
                                 chatClient,
                                 "Failed to process key exchange initiation",
                                 e,
-                                () -> handleIncomingKeyExchange(message, cryptoManager, writeThread, chatClient)
-                        );
+                                () -> handleIncomingKeyExchange(message, cryptoManager, writeThread, chatClient));
                     }
                     break;
 
@@ -113,14 +116,14 @@ public class AutoKeyExchange {
                         writeThread.sendKeyExchangeMessage(sessionKeyMsg);
 
                         // Hidden: indicate successful public key exchange
-                        // chatClient.appendMessage("[System] Public key received, sending session key...");
+                        // chatClient.appendMessage("[System] Public key received, sending session
+                        // key...");
                     } catch (Exception e) {
                         ErrorHandler.handleCryptoError(
                                 chatClient,
                                 "Failed to process public key and generate session key",
                                 e,
-                                () -> handleIncomingKeyExchange(message, cryptoManager, writeThread, chatClient)
-                        );
+                                () -> handleIncomingKeyExchange(message, cryptoManager, writeThread, chatClient));
                     }
                     break;
                 case SESSION_KEY_OFFER:
@@ -154,8 +157,7 @@ public class AutoKeyExchange {
                                 chatClient,
                                 "Error processing session key",
                                 e,
-                                () -> handleIncomingKeyExchange(message, cryptoManager, writeThread, chatClient)
-                        );
+                                () -> handleIncomingKeyExchange(message, cryptoManager, writeThread, chatClient));
                     }
                     break;
                 case EXCHANGE_COMPLETE:
@@ -176,8 +178,7 @@ public class AutoKeyExchange {
                             "Key exchange failed: " + message.getPayload(),
                             new Exception(message.getPayload()),
                             () -> performKeyExchange(message.getSenderUsername(), chatClient.getUserName(),
-                                    cryptoManager, writeThread)
-                    );
+                                    cryptoManager, writeThread));
                     cleanupExchange(chatClient.getUserName(), message.getSenderUsername());
                     break;
             }
@@ -185,8 +186,7 @@ public class AutoKeyExchange {
             ErrorHandler.handleFatalError(
                     chatClient,
                     "Critical error during key exchange",
-                    e
-            );
+                    e);
         }
     }
 

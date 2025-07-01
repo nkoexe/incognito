@@ -1,6 +1,8 @@
 package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
+import org.incognito.crypto.AutoKeyExchange;
+import org.incognito.GUI.UI;
 
 import javax.swing.*;
 import java.util.Base64;
@@ -18,16 +20,16 @@ public class ReadThread extends Thread {
     private CryptoManager cryptoManager;
     private ObjectInputStream inputStream;
     private Socket socket;
-    private GUITest client;
+    private UI client;
 
     private final BlockingQueue<Object> messageQueue = new LinkedBlockingQueue<>();
     private BlockingQueue<String> loginResponseQueue;
 
-    public ReadThread(Socket socket, GUITest client, CryptoManager cryptoManager) {
+    public ReadThread(Socket socket, UI client, CryptoManager cryptoManager) {
         this(socket, client, cryptoManager, null);
     }
 
-    public ReadThread(Socket socket, GUITest client, CryptoManager cryptoManager,
+    public ReadThread(Socket socket, UI client, CryptoManager cryptoManager,
             BlockingQueue<String> loginResponseQueue) {
         this.socket = socket;
         this.client = client;

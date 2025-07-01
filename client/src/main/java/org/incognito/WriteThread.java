@@ -1,6 +1,8 @@
 package org.incognito;
 
 import org.incognito.crypto.CryptoManager;
+import org.incognito.crypto.AutoKeyExchange;
+import org.incognito.GUI.UI;
 
 import java.util.Base64;
 
@@ -19,9 +21,9 @@ public class WriteThread extends Thread {
     private BlockingQueue<String> messageQueue = new LinkedBlockingQueue<>();
     private ObjectOutputStream outputStream;
     private Socket socket;
-    private GUITest client;
+    private UI client;
 
-    public WriteThread(Socket socket, GUITest client, CryptoManager cryptoManager) {
+    public WriteThread(Socket socket, UI client, CryptoManager cryptoManager) {
         this.socket = socket;
         this.client = client;
         this.cryptoManager = cryptoManager;
@@ -188,7 +190,7 @@ public class WriteThread extends Thread {
         }
     }
 
-    public GUITest getClient() {
+    public UI getClient() {
         return client;
     }
 }

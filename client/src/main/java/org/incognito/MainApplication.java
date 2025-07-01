@@ -8,7 +8,7 @@ import javax.swing.*;
 import java.util.logging.Logger;
 
 public class MainApplication {
-    private static GUITest chatClient;
+    private static UI chatClient;
     private static Logger logger = Logger.getLogger(MainApplication.class.getName());
     private static UserSelectionPage.UserSelectionListener userSelectionListener;
     private static CryptoManager cryptoManager;
@@ -57,8 +57,8 @@ public class MainApplication {
                             handleConnectionError(userSelectionPage, "Failed to connect to server for chat");
                             return;
                         }
-                        // Create GUITest with the configured CryptoManager and user info
-                        chatClient = new GUITest(cryptoManager, currentUsername, userSelectionListener);
+                        // Create UI with the configured CryptoManager and user info
+                        chatClient = new UI(cryptoManager, currentUsername, userSelectionListener);
 
                         // Initialize connection with the provided username and target
                         chatClient.initializeConnectionWithUsername(chatConnection, currentUsername, targetUser);
@@ -113,8 +113,8 @@ public class MainApplication {
                             userSelectionPage.disconnect();
                             userSelectionPage.dispose();
 
-                            // Create GUITest with the configured CryptoManager and user info
-                            chatClient = new GUITest(readyCryptoManager, currentUsername, userSelectionListener);
+                            // Create UI with the configured CryptoManager and user info
+                            chatClient = new UI(readyCryptoManager, currentUsername, userSelectionListener);
                             chatClient.setVisible(true);
 
                             // Create a fresh connection for manual key exchange

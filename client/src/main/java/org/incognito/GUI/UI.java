@@ -1,7 +1,12 @@
-package org.incognito;
+package org.incognito.GUI;
 
 import org.incognito.crypto.CryptoManager;
-import org.incognito.GUI.UserSelectionPage;
+import org.incognito.Connection;
+import org.incognito.ReadThread;
+import org.incognito.WriteThread;
+import org.incognito.crypto.AutoKeyExchange;
+import org.incognito.ErrorHandler;
+import org.incognito.ChatSessionLogger;
 import org.incognito.GUI.theme.ModernTheme;
 
 import javax.crypto.SecretKey;
@@ -17,9 +22,9 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.logging.Logger;
 
-public class GUITest extends JFrame {
+public class UI extends JFrame {
     // Set up logging
-    private static final Logger logger = Logger.getLogger(GUITest.class.getName());
+    private static final Logger logger = Logger.getLogger(UI.class.getName());
     private Connection connection;
 
     // UI components
@@ -57,7 +62,7 @@ public class GUITest extends JFrame {
      */
     private String currentChatPartner;
 
-    public GUITest(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {
+    public UI(CryptoManager cryptoManager, String username, UserSelectionPage.UserSelectionListener listener) {
         this.cryptoManager = cryptoManager;
         this.currentUsername = username;
         this.userSelectionListener = listener;
@@ -476,7 +481,7 @@ public class GUITest extends JFrame {
      *
      * @param userListStr
      */
-    void updateUsersList(String userListStr) {
+    public void updateUsersList(String userListStr) {
         try {
             SwingUtilities.invokeLater(() -> {
                 // Clear current list except for the current user
@@ -517,7 +522,7 @@ public class GUITest extends JFrame {
         });
     }
 
-    String getUserName() {
+    public String getUserName() {
         return userName;
     }
 
