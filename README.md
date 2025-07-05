@@ -7,8 +7,8 @@ CS13 Group members:
 
 
 This project's aim is to be a secure chat application that allows
-users to communicate without revealing their identities. It uses
-custom made E2EE (end-to-end encryption) implementation to ensure message privacy.
+users to communicate without revealing their identities. It utilizes a 
+custom-made E2EE (end-to-end encryption) implementation to ensure message privacy.
 It also features a server that can be run locally or on remote machines.
 
 ## How to run
@@ -20,7 +20,7 @@ gradle client:run
 
 ### Running on local server
 
-Otherwise if you want to run the client on a custom server or locally, 
+Otherwise, if you want to run the client on a custom server or locally, 
 first change the constant variable in:
 `client/src/main/java/org/incognito/Connection.java`:
 ```java
@@ -67,3 +67,22 @@ Closing the client or pressing the "Exit Chat" button will return you to the use
 - Server.java: Main entry point for server init
 - Connection.java: Connection creation, username validation, general broadcasting, client creation
 - ClientHandler.java: Individual messages handling
+
+
+## Important Programming Techniques
+These are some of the key programming techniques and features used in this project:
+### Asynchronous Programming
+The client uses asynchronous programming to handle message sending and receiving without blocking the user interface. 
+This is achieved through the use of separate threads for reading and writing messages, allowing for a responsive chat experience.
+### End-to-End Encryption (E2EE)
+The application implements a custom E2EE protocol to ensure that messages are encrypted on the sender's side and decrypted only on the receiver's side.
+This is done using a combination of symmetric and asymmetric encryption techniques, in specific:
+- AES (Advanced Encryption Standard) for symmetric encryption of messages
+- RSA (Rivest-Shamir-Adleman) for asymmetric encryption of the AES key
+Also a encryption test is performed after manual key exchange to ensure that the encryption and decryption processes work correctly, which status is saved in the logs. (present in MenuPage lines 357-368)
+### QR Code Generation and Scanning
+The application includes functionality for generating and scanning QR codes to facilitate secure key exchange between users.
+It uses the ZXing library for QR code generation and scanning, allowing users to easily share encryption keys.
+
+
+## Experience and Challenges
