@@ -86,3 +86,11 @@ It uses the ZXing library for QR code generation and scanning, allowing users to
 
 
 ## Experience and Challenges
+👤 Niccoló Ragazzi – 
+Handled the full setup of the project including Gradle configuration, directory structuring, and Git initialization. Implemented core client-server socket communication with threading, message queues, and logging. Developed key features like automatic key exchange, lobby system, and username validation. Led refactoring efforts for cleaner, consistent code and managed deployment and ongoing maintenance.
+
+👤 Lorenzo Donadello – 
+Bootstrapped the project with initial repository structure and foundational Java classes. Implemented client-side components such as the read/write thread model, ClientHandler, and E2EE encryption. Led development of a modern GUI, merged feature branches, and resolved critical bugs including username reuse, connection failures, and manual key exchange issues. Contributed to code cleanup, file removals, and built chat session logging tools.
+
+Tahsan J Jilan –
+Enhanced application stability by implementing comprehensive error handling on both client and server sides. Added user-friendly features like a “leave chat” button and improved username case sensitivity to prevent conflicts. Regularly fixed minor bugs and refined error prompts, ensuring smoother and more reliable user interactions.
