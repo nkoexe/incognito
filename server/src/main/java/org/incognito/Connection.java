@@ -142,13 +142,24 @@ public class Connection {
     }
 
     public void broadcastUserList() {
-        if (connectedUsers.isEmpty()) {
+        // Build set of users in any active session
+        Set<String> busyUsers = new java.util.HashSet<>();
+        for (PrivateChatSession session : activePrivateSessions.values()) {
+            for (ClientHandler client : session.getClients()) {
+                if (client != null && client.getUsername() != null) {
+                    busyUsers.add(client.getUsername());
+                }
+            }
+        }
+        Set<String> availableUsers = new java.util.HashSet<>(connectedUsers);
+        availableUsers.removeAll(busyUsers);
+        if (availableUsers.isEmpty()) {
             broadcast("USERLIST:");
         } else {
-            String userListStr = String.join(",", connectedUsers);
+            String userListStr = String.join(",", availableUsers);
             broadcast("USERLIST:" + userListStr);
         }
-        logger.fine("Broadcasting user list: " + String.join(",", connectedUsers));
+        logger.fine("Broadcasting user list (available only): " + String.join(",", availableUsers));
     }
 
     // Get client handler by username
@@ -164,15 +175,20 @@ public class Connection {
     // Methods for private chat session handling
     public synchronized void handlePrivateChatRequest(ClientHandler requester, String sessionId,
             String requesterUsername) {
+        // Prevent user from joining multiple sessions
         if (clientToSessionIdMap.containsKey(requester)) {
             requester.send("ERROR:Already in a session or pending request.");
             logger.warning("User " + requesterUsername + " tried to start a new private chat while already in one.");
             return;
         }
-
+        // Prevent session hijacking: sessionId must not be in use by another session
+        if (activePrivateSessions.containsKey(sessionId)) {
+            requester.send("ERROR:Session already active.");
+            logger.warning("Session ID " + sessionId + " already active. Rejecting request from " + requesterUsername);
+            return;
+        }
         if (pendingPrivateChats.containsKey(sessionId)) {
             ClientHandler peerHandler = pendingPrivateChats.remove(sessionId);
-
             if (peerHandler == requester) {
                 // Same client sent the request again
                 pendingPrivateChats.put(sessionId, requester);
@@ -180,24 +196,27 @@ public class Connection {
                 logger.info("User " + requesterUsername + " re-initiated wait for session " + sessionId);
                 return;
             }
+            // Double-check peer is not in a session
+            if (clientToSessionIdMap.containsKey(peerHandler)) {
+                requester.send("ERROR:Peer is already in a session.");
+                logger.warning("Peer " + peerHandler.getUsername() + " already in a session. Rejecting join for " + requesterUsername);
+                return;
+            }
             PrivateChatSession newSession = new PrivateChatSession(requester, peerHandler, sessionId);
             activePrivateSessions.put(sessionId, newSession);
             clientToSessionIdMap.put(requester, sessionId);
             clientToSessionIdMap.put(peerHandler, sessionId);
-
-            ChatSessionLogger
-                    .logInfo("Private chat session " + sessionId + " created between " + requesterUsername + " and "
-                            + peerHandler.getUsername());
-
+            ChatSessionLogger.logInfo("Private chat session " + sessionId + " created between " + requesterUsername + " and " + peerHandler.getUsername());
             requester.send("PEER_CONNECTED:" + peerHandler.getUsername() + ":" + sessionId);
             peerHandler.send("PEER_CONNECTED:" + requesterUsername + ":" + sessionId);
-            logger.info("Private session " + sessionId + " started between " + requesterUsername + " and "
-                    + peerHandler.getUsername());
+            logger.info("Private session " + sessionId + " started between " + requesterUsername + " and " + peerHandler.getUsername());
+            broadcastUserList(); // Auto-refresh user list for all clients
         } else {
             pendingPrivateChats.put(sessionId, requester);
             requester.send("WAITING_FOR_PEER:" + sessionId);
             ChatSessionLogger.logInfo("User " + requesterUsername + " is waiting for a peer for session " + sessionId);
             logger.info("User " + requesterUsername + " is waiting for a peer for session " + sessionId);
+            broadcastUserList();
         }
     }
 

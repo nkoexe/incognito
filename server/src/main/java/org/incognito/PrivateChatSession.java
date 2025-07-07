@@ -29,4 +29,8 @@ public class PrivateChatSession {
     public String getSessionId() {
         return sessionId;
     }
+
+    public ClientHandler[] getClients() {
+        return new ClientHandler[] { client1, client2 };
+    }
 }

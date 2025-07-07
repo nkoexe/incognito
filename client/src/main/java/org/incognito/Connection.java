@@ -8,7 +8,7 @@ import java.net.UnknownHostException;
 public class Connection {
     private static Logger logger = Logger.getLogger(Connection.class.getName());
 
-    private String host = "incognito.njco.dev";
+    private String host = "localhost";
     private int port = 58239;
 
     private Socket socket;

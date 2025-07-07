@@ -2,7 +2,7 @@
 
 CS13 Group members:
 - Lorenzo Donadello (@w8rst)
-- Tahsan Jamal Jilan (@tahsanJilan)
+- Tahsan Jamal Jilan (@tahsanJilan and @tinyBz)
 - Niccolò Ragazzi (@nkoexe)
 
 
